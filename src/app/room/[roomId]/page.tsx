@@ -5,6 +5,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/api';
 import {
   initializeRoom,
   stake,
@@ -64,7 +65,7 @@ export default function RoomPage() {
 
   const fetchRoom = useCallback(async () => {
     try {
-      const res = await fetch(`/api/rooms/${roomId}?userId=${myWallet}`);
+      const res = await fetch(apiUrl(`/api/v1/rooms/${roomId}?userId=${myWallet}`));
       if (!res.ok) throw new Error('Failed to load room');
       const data = await res.json();
       setRoom(data);
@@ -94,10 +95,7 @@ export default function RoomPage() {
 
     try {
       if (action === 'approve_terms') {
-        const res = await fetch(`/api/rooms/${roomId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'approve_terms', userId: myWallet }),
+        const res = await fetch(apiUrl(`/api/v1/rooms/${roomId}`), {
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Failed');
         setSuccess('Terms approved!');
@@ -125,7 +123,7 @@ export default function RoomPage() {
         console.log('Stake tx:', sig2);
 
         // Record stake in DB
-        await fetch(`/api/rooms/${roomId}`, {
+        await fetch(apiUrl(`/api/v1/rooms/${roomId}`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -147,7 +145,7 @@ export default function RoomPage() {
         });
         console.log('Joiner stake tx:', sig);
 
-        await fetch(`/api/rooms/${roomId}`, {
+        await fetch(apiUrl(`/api/v1/rooms/${roomId}`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -171,7 +169,7 @@ export default function RoomPage() {
           wallet,
           connection,
         });
-        await fetch(`/api/rooms/${roomId}`, {
+        await fetch(apiUrl(`/api/v1/rooms/${roomId}`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -190,7 +188,7 @@ export default function RoomPage() {
           wallet,
           connection,
         });
-        await fetch(`/api/rooms/${roomId}`, {
+        await fetch(apiUrl(`/api/v1/rooms/${roomId}`), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

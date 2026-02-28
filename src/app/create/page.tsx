@@ -6,8 +6,9 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import type { ConditionType, ContractConditionData } from '@/lib/types';
+import { apiUrl } from '@/lib/api';
 
-export default function CreateRoomPage() {
+export default function PostJobPage() {
   const { connected, publicKey } = useWallet();
   const router = useRouter();
 
@@ -22,7 +23,7 @@ export default function CreateRoomPage() {
   const [error, setError] = useState('');
   const [conditions, setConditions] = useState<ContractConditionData[]>([
     {
-      type: 'custom',
+      type: 'task_completion',
       title: '',
       description: '',
       responsible_party: 'joiner',
@@ -34,7 +35,7 @@ export default function CreateRoomPage() {
     setConditions([
       ...conditions,
       {
-        type: 'custom',
+        type: 'task_completion',
         title: '',
         description: '',
         responsible_party: 'joiner',
@@ -62,34 +63,33 @@ export default function CreateRoomPage() {
       return;
     }
 
-    const creatorAmount = parseFloat(creatorStake);
-    const joinerAmount = parseFloat(joinerStake);
+    const bountyAmount = parseFloat(creatorStake);
+    const workerStake = parseFloat(joinerStake);
 
-    if (creatorAmount < joinerAmount) {
-      setError('Creator stake must be >= joiner stake (you need more skin in the game!)');
+    if (bountyAmount < workerStake) {
+      setError('Bounty (your stake) must be >= worker stake — you need more skin in the game!');
       return;
     }
 
-    if (creatorAmount <= 0 || joinerAmount <= 0) {
+    if (bountyAmount <= 0 || workerStake <= 0) {
       setError('Stake amounts must be greater than 0');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch('/api/rooms', {
+      const response = await fetch(apiUrl('/api/v1/rooms'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: publicKey.toBase58(), // In prod, use proper auth
           walletAddress: publicKey.toBase58(),
           title,
           description,
-          creatorStakeAmount: creatorAmount,
-          joinerStakeAmount: joinerAmount,
+          creatorStakeAmount: bountyAmount,
+          joinerStakeAmount: workerStake,
           contractDeadline: contractDeadline || undefined,
           terms: {
-            title: `Terms for: ${title}`,
+            title: `Job Terms: ${title}`,
             summary: termsSummary,
             conditions: conditions.filter((c) => c.title.trim()),
             additionalNotes: additionalNotes || undefined,
@@ -97,13 +97,13 @@ export default function CreateRoomPage() {
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create room');
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to post job');
       }
 
-      const room = await response.json();
-      router.push(`/room/${room.id}?joinCode=${room.join_code}`);
+      router.push(`/room/${data.room.id}?joinCode=${data.room.join_code}`);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -116,7 +116,7 @@ export default function CreateRoomPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-4">Connect Wallet</h1>
-          <p className="text-gray-400 mb-6">Connect your Solana wallet to create a room</p>
+          <p className="text-gray-400 mb-6">Connect your Solana wallet to post a job</p>
           <WalletMultiButton />
         </div>
       </div>
@@ -126,13 +126,13 @@ export default function CreateRoomPage() {
   return (
     <div className="min-h-screen px-4 py-8">
       <div className="max-w-2xl mx-auto">
-        <Link href="/" className="text-violet-400 hover:text-violet-300 mb-6 inline-block">
-          ← Back to Home
+        <Link href="/" className="text-amber-400 hover:text-amber-300 mb-6 inline-block">
+          ← Back to Marketplace
         </Link>
 
-        <h1 className="text-3xl font-bold mb-2">Create Escrow Room</h1>
+        <h1 className="text-3xl font-bold mb-2">Post a Job</h1>
         <p className="text-gray-400 mb-8">
-          Define your terms and stake amounts. You&apos;ll get a join code to share.
+          Describe the work, set your bounty and the worker&apos;s commitment stake. You&apos;ll get a job code to share.
         </p>
 
         {error && (
@@ -142,18 +142,18 @@ export default function CreateRoomPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Room Details */}
+          {/* Job Details */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">Room Details</h2>
+            <h2 className="text-lg font-semibold mb-4">Job Details</h2>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Title *</label>
+                <label className="block text-sm text-gray-400 mb-1">Job Title *</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Freelance Web Design Project"
+                  placeholder="e.g., Build a responsive landing page"
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                   required
                 />
@@ -164,7 +164,7 @@ export default function CreateRoomPage() {
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the agreement..."
+                  placeholder="Describe the work to be done..."
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-24 resize-none"
                 />
               </div>
@@ -183,14 +183,14 @@ export default function CreateRoomPage() {
 
           {/* Stake Amounts */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-2">Stake Amounts (SOL)</h2>
+            <h2 className="text-lg font-semibold mb-2">Stakes (SOL)</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Your stake must be ≥ the joiner&apos;s stake. Higher creator stake = more trust.
+              Your bounty stake must be ≥ the worker&apos;s commitment stake. Higher bounty = more trust from workers.
             </p>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Your stake (creator) *</label>
+                <label className="block text-sm text-gray-400 mb-1">Your bounty stake *</label>
                 <input
                   type="number"
                   value={creatorStake}
@@ -201,10 +201,11 @@ export default function CreateRoomPage() {
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">Locked as bounty guarantee</p>
               </div>
 
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Joiner&apos;s stake *</label>
+                <label className="block text-sm text-gray-400 mb-1">Worker&apos;s stake *</label>
                 <input
                   type="number"
                   value={joinerStake}
@@ -215,35 +216,36 @@ export default function CreateRoomPage() {
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
                   required
                 />
+                <p className="text-xs text-gray-500 mt-1">Worker commitment deposit</p>
               </div>
             </div>
 
             {creatorStake && joinerStake && parseFloat(creatorStake) < parseFloat(joinerStake) && (
               <p className="text-red-400 text-sm mt-2">
-                ⚠️ Creator stake must be ≥ joiner stake
+                ⚠️ Bounty must be ≥ worker stake
               </p>
             )}
           </div>
 
-          {/* Contract Terms */}
+          {/* Deliverables */}
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">Contract Terms</h2>
+            <h2 className="text-lg font-semibold mb-4">Deliverables &amp; Terms</h2>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Terms Summary *</label>
+                <label className="block text-sm text-gray-400 mb-1">Job Summary *</label>
                 <textarea
                   value={termsSummary}
                   onChange={(e) => setTermsSummary(e.target.value)}
-                  placeholder="Summarize what both parties agree to..."
+                  placeholder="Summarize what the worker needs to deliver..."
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-24 resize-none"
                   required
                 />
               </div>
 
-              {/* Conditions */}
+              {/* Conditions (Deliverables) */}
               <div>
-                <label className="block text-sm text-gray-400 mb-2">Conditions</label>
+                <label className="block text-sm text-gray-400 mb-2">Deliverables / Requirements</label>
                 {conditions.map((condition, index) => (
                   <div
                     key={index}
@@ -251,7 +253,7 @@ export default function CreateRoomPage() {
                   >
                     <div className="flex justify-between items-center mb-3">
                       <span className="text-sm font-medium text-gray-300">
-                        Condition #{index + 1}
+                        Deliverable #{index + 1}
                       </span>
                       {conditions.length > 1 && (
                         <button
@@ -270,7 +272,7 @@ export default function CreateRoomPage() {
                           type="text"
                           value={condition.title}
                           onChange={(e) => updateCondition(index, 'title', e.target.value)}
-                          placeholder="Condition title"
+                          placeholder="Deliverable title"
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white"
                         />
                       </div>
@@ -283,9 +285,9 @@ export default function CreateRoomPage() {
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white"
                         >
                           <option value="task_completion">Task Completion</option>
-                          <option value="payment">Payment</option>
                           <option value="delivery">Delivery</option>
                           <option value="milestone">Milestone</option>
+                          <option value="payment">Payment</option>
                           <option value="time_based">Time Based</option>
                           <option value="custom">Custom</option>
                         </select>
@@ -295,7 +297,7 @@ export default function CreateRoomPage() {
                     <textarea
                       value={condition.description}
                       onChange={(e) => updateCondition(index, 'description', e.target.value)}
-                      placeholder="Describe this condition in detail..."
+                      placeholder="Describe this deliverable in detail..."
                       className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white h-16 resize-none mb-3"
                     />
 
@@ -307,8 +309,8 @@ export default function CreateRoomPage() {
                         }
                         className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white"
                       >
-                        <option value="joiner">Joiner responsible</option>
-                        <option value="creator">Creator responsible</option>
+                        <option value="joiner">Worker delivers</option>
+                        <option value="creator">Poster provides</option>
                       </select>
                     </div>
                   </div>
@@ -317,9 +319,9 @@ export default function CreateRoomPage() {
                 <button
                   type="button"
                   onClick={addCondition}
-                  className="text-violet-400 hover:text-violet-300 text-sm font-medium"
+                  className="text-amber-400 hover:text-amber-300 text-sm font-medium"
                 >
-                  + Add Condition
+                  + Add Deliverable
                 </button>
               </div>
 
@@ -328,7 +330,7 @@ export default function CreateRoomPage() {
                 <textarea
                   value={additionalNotes}
                   onChange={(e) => setAdditionalNotes(e.target.value)}
-                  placeholder="Any additional notes or disclaimers..."
+                  placeholder="Any additional notes, tech stack requirements, etc..."
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-20 resize-none"
                 />
               </div>
@@ -339,9 +341,9 @@ export default function CreateRoomPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-lg font-semibold transition"
+            className="w-full py-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-lg font-semibold transition"
           >
-            {loading ? 'Creating Room...' : '🚀 Create Room & Get Join Code'}
+            {loading ? 'Posting Job...' : '📋 Post Job & Get Share Code'}
           </button>
         </form>
       </div>
