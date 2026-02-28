@@ -509,3 +509,107 @@ export async function getRoomByJoinCode(joinCode: string): Promise<Room | null> 
 
   return data as Room | null;
 }
+
+// ============================================================================
+// PUBLIC BROWSING
+// ============================================================================
+
+/**
+ * Get all public rooms (for the browse page / API).
+ * Supports pagination, search, and status filtering.
+ */
+export async function getAllPublicRooms(options?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+  search?: string;
+  sortBy?: 'created_at' | 'creator_stake_amount' | 'total_staked';
+  sortOrder?: 'asc' | 'desc';
+}): Promise<{ rooms: Room[]; total: number; page: number; limit: number }> {
+  const page = options?.page ?? 1;
+  const limit = Math.min(options?.limit ?? 20, 100);
+  const offset = (page - 1) * limit;
+  const sortBy = options?.sortBy ?? 'created_at';
+  const sortOrder = options?.sortOrder ?? 'desc';
+
+  let query = supabase
+    .from('rooms')
+    .select('*', { count: 'exact' })
+    .eq('is_public', true);
+
+  if (options?.status) {
+    query = query.eq('status', options.status);
+  }
+
+  if (options?.search) {
+    query = query.or(
+      `title.ilike.%${options.search}%,description.ilike.%${options.search}%`
+    );
+  }
+
+  query = query
+    .order(sortBy, { ascending: sortOrder === 'asc' })
+    .range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
+  if (error) throw new Error(`Failed to fetch rooms: ${error.message}`);
+
+  return {
+    rooms: (data ?? []) as Room[],
+    total: count ?? 0,
+    page,
+    limit,
+  };
+}
+
+/**
+ * Get room by ID without access check (for public API).
+ */
+export async function getRoomPublic(roomId: string): Promise<Room | null> {
+  const { data, error } = await supabase
+    .from('rooms')
+    .select('*')
+    .eq('id', roomId)
+    .single();
+
+  if (error || !data) return null;
+  return data as Room;
+}
+
+/**
+ * Get room with full details for API (includes participants, terms, stakes).
+ * No access restriction — designed for the public API.
+ */
+export async function getRoomFull(roomId: string): Promise<RoomView | null> {
+  const { data: room, error } = await supabase
+    .from('rooms')
+    .select('*')
+    .eq('id', roomId)
+    .single();
+
+  if (error || !room) return null;
+
+  const [participants, terms, stakes, actions] = await Promise.all([
+    supabase.from('room_participants').select('*').eq('room_id', roomId),
+    supabase
+      .from('contract_terms')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('is_current', true)
+      .single(),
+    supabase.from('stakes').select('*').eq('room_id', roomId),
+    supabase
+      .from('action_requests')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('status', 'pending'),
+  ]);
+
+  return {
+    ...room,
+    participants: (participants.data ?? []) as RoomParticipant[],
+    currentTerms: terms.data as ContractTerms | undefined,
+    stakes: (stakes.data ?? []) as Stake[],
+    pendingActions: (actions.data ?? []) as ActionRequest[],
+  } as RoomView;
+}

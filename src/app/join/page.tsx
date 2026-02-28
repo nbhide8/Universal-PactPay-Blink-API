@@ -5,8 +5,9 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { apiUrl } from '@/lib/api';
 
-export default function JoinRoomPage() {
+export default function AcceptJobPage() {
   const { connected, publicKey } = useWallet();
   const router = useRouter();
 
@@ -14,7 +15,7 @@ export default function JoinRoomPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleJoin = async (e: React.FormEvent) => {
+  const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -24,13 +25,13 @@ export default function JoinRoomPage() {
     }
 
     if (joinCode.trim().length !== 6) {
-      setError('Join code must be 6 characters');
+      setError('Job code must be 6 characters');
       return;
     }
 
     setLoading(true);
     try {
-      const response = await fetch('/api/rooms/join', {
+      const response = await fetch(apiUrl('/api/v1/rooms/join'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -42,7 +43,7 @@ export default function JoinRoomPage() {
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Failed to join room');
+        throw new Error(data.error || 'Failed to accept job');
       }
 
       const room = await response.json();
@@ -59,7 +60,7 @@ export default function JoinRoomPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-3xl font-bold mb-4">Connect Wallet</h1>
-          <p className="text-gray-400 mb-6">Connect your wallet to join a room</p>
+          <p className="text-gray-400 mb-6">Connect your wallet to accept a job</p>
           <WalletMultiButton />
         </div>
       </div>
@@ -69,13 +70,13 @@ export default function JoinRoomPage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="max-w-md w-full">
-        <Link href="/" className="text-violet-400 hover:text-violet-300 mb-6 inline-block">
-          ← Back to Home
+        <Link href="/" className="text-amber-400 hover:text-amber-300 mb-6 inline-block">
+          ← Back to Marketplace
         </Link>
 
-        <h1 className="text-3xl font-bold mb-2">Join a Room</h1>
+        <h1 className="text-3xl font-bold mb-2">Accept a Job</h1>
         <p className="text-gray-400 mb-8">
-          Enter the 6-character join code shared with you.
+          Enter the 6-character job code shared by the poster.
         </p>
 
         {error && (
@@ -84,9 +85,9 @@ export default function JoinRoomPage() {
           </div>
         )}
 
-        <form onSubmit={handleJoin} className="space-y-6">
+        <form onSubmit={handleAccept} className="space-y-6">
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-            <label className="block text-sm text-gray-400 mb-4">Join Code</label>
+            <label className="block text-sm text-gray-400 mb-4">Job Code</label>
             <input
               type="text"
               value={joinCode}
@@ -97,16 +98,16 @@ export default function JoinRoomPage() {
               required
             />
             <p className="text-xs text-gray-500 mt-3">
-              The room creator should have shared this code with you
+              The job poster should have shared this code with you
             </p>
           </div>
 
           <button
             type="submit"
             disabled={loading || joinCode.length !== 6}
-            className="w-full py-4 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-lg font-semibold transition"
+            className="w-full py-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-lg font-semibold transition"
           >
-            {loading ? 'Joining...' : '🔗 Join Room'}
+            {loading ? 'Accepting...' : '🤝 Accept Job'}
           </button>
         </form>
       </div>
