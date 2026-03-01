@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server';
 
 /**
- * GET /api/v1/docs — StakeGuard API Documentation
+ * GET /api/v1/docs — Blink API Documentation
  *
  * Returns a comprehensive JSON description of all available endpoints.
- * This is the entrypoint for any external developer integrating StakeGuard.
+ * This is the entrypoint for any external developer integrating Blink.
  */
 export async function GET() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://stakeguard.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://blink.app';
 
   const docs = {
-    name: 'StakeGuard API',
+    name: 'Blink API',
     version: '2.0.0',
     description:
       'Blockchain-backed escrow API. Every lockbox is a real Solana on-chain PDA escrow. ' +
@@ -29,13 +29,13 @@ export async function GET() {
         'Any company can deploy it to Railway, get an API key, and build their own escrow-backed application.',
       components: [
         {
-          name: 'StakeGuard API',
+          name: 'Blink API',
           description: 'Standalone REST API deployed on Railway. Returns JSON only. Manages escrow lifecycle. Signs custodial Solana transactions.',
-          url: 'https://stakeguard-api.up.railway.app',
+          url: 'https://blink-api.up.railway.app',
           independent: true,
         },
         {
-          name: 'StakeWork Frontend',
+          name: 'PackedPay Frontend',
           description: 'Next.js demo app that CONSUMES the API via NEXT_PUBLIC_API_URL. Deployed separately on Vercel.',
           independent: true,
         },
@@ -96,8 +96,8 @@ export async function GET() {
       description:
         'Include your API key in the X-API-Key header on all requests. ' +
         'The /api/v1/docs endpoint is public and does not require authentication. ' +
-        'When STAKEGUARD_API_KEY is not configured on the server, authentication is disabled.',
-      example: 'curl -H "X-API-Key: your-key-here" https://api.stakeguard.app/api/v1/rooms',
+        'When BLINK_API_KEY is not configured on the server, authentication is disabled.',
+      example: 'curl -H "X-API-Key: your-key-here" https://api.blink.app/api/v1/rooms',
     },
 
     flow: {

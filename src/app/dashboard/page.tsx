@@ -66,7 +66,7 @@ export default function DashboardPage() {
       <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="text-xl font-bold text-amber-400 hover:text-amber-300">StakeWork</Link>
+            <Link href="/" className="text-xl font-bold text-amber-400 hover:text-amber-300">PackedPay</Link>
             <span className="text-gray-500">|</span>
             <h1 className="text-lg font-semibold">Dashboard</h1>
           </div>

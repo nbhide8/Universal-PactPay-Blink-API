@@ -1,8 +1,8 @@
 /**
- * StakeGuard Server-Side Transaction Builder
+ * Blink Server-Side Transaction Builder
  *
  * Builds unsigned Solana transactions that callers sign with their own wallet.
- * This is the core engine behind the StakeGuard API — no wallet adapter
+ * This is the core engine behind the Blink API — no wallet adapter
  * needed, just a public key and the API returns a base64-encoded transaction.
  *
  * Pattern used by Jupiter, Tensor, Dialect, and other Solana API products:

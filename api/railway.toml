@@ -1,8 +1,8 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Railway Deployment — StakeGuard API (standalone)
+# Railway Deployment — Blink API (standalone)
 #
 # This deploys the API as an independent service on Railway.
-# The frontend (StakeWork) is deployed SEPARATELY and calls this API
+# The frontend (PackedPay) is deployed SEPARATELY and calls this API
 # via NEXT_PUBLIC_API_URL.
 #
 # The API has ZERO dependency on the frontend. Any company can:
@@ -14,7 +14,7 @@
 #   NEXT_PUBLIC_SUPABASE_URL
 #   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 #   NEXT_PUBLIC_SOLANA_RPC_URL
-#   STAKEGUARD_API_KEY          — Required for API key auth
+#   BLINK_API_KEY          — Required for API key auth
 #   PLATFORM_WALLET_SECRET      — Required for custodial mode
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -26,6 +26,7 @@ buildCommand = "bun install && bun run build"
 startCommand = "bun run start"
 healthcheckPath = "/api/v1/docs"
 healthcheckTimeout = 30
+internalPort = 3001
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 

@@ -7,7 +7,7 @@ import { recordStake, getRoomPublic } from '@/lib/database';
  * POST /api/v1/tx/submit — Submit a signed transaction to Solana
  *
  * This is the transaction relay endpoint. After receiving an unsigned
- * transaction from any StakeGuard API endpoint, the client:
+ * transaction from any Blink API endpoint, the client:
  *   1. Deserializes the base64 transaction
  *   2. Signs it with their wallet
  *   3. Re-serializes it

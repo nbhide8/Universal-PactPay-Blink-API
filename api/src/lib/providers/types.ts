@@ -1,6 +1,6 @@
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * StakeGuard Escrow Types
+ * Blink Escrow Types
  *
  * CORE PRINCIPLE: Solana blockchain is ALWAYS the escrow mechanism.
  * Every lockbox = an on-chain PDA that holds real SOL.

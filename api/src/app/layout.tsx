@@ -1,5 +1,5 @@
 export const metadata = {
-  title: 'StakeGuard API',
+  title: 'Blink API',
   description: 'Blockchain-backed escrow API',
 };
 

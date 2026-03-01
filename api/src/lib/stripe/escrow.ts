@@ -102,13 +102,13 @@ export async function createDeposit(params: CreateDepositParams): Promise<Deposi
     currency: params.currency.toLowerCase(),
     capture_method: 'manual', // ← KEY: hold funds, don't capture yet
     metadata: {
-      stakeguard_room_id: params.roomId,
-      stakeguard_user_id: params.userId,
-      stakeguard_role: params.role,
-      stakeguard_escrow_pda: params.escrowPda || '',
-      stakeguard_type: 'escrow_deposit',
+      blink_room_id: params.roomId,
+      blink_user_id: params.userId,
+      blink_role: params.role,
+      blink_escrow_pda: params.escrowPda || '',
+      blink_type: 'escrow_deposit',
     },
-    description: `StakeGuard escrow deposit — Room ${params.roomId} (${params.role})`,
+    description: `Blink escrow deposit — Room ${params.roomId} (${params.role})`,
     ...(params.customerId ? { customer: params.customerId } : {}),
     // Enable automatic payment methods for maximum compatibility
     automatic_payment_methods: {
@@ -181,7 +181,7 @@ export async function captureAndTransfer(
       destination: destinationAccountId,
       metadata: {
         source_payment_intent: paymentIntentId,
-        stakeguard_type: 'escrow_payout',
+        blink_type: 'escrow_payout',
       },
     });
 
@@ -226,7 +226,7 @@ export async function refundDeposit(
       const refund = await stripe.refunds.create({
         payment_intent: paymentIntentId,
         metadata: {
-          stakeguard_type: 'escrow_refund',
+          blink_type: 'escrow_refund',
         },
       });
       return { success: true, refundId: refund.id };
@@ -276,6 +276,6 @@ export async function getDepositStatus(
     status: pi.status,
     amount: pi.amount,
     currency: pi.currency,
-    roomId: (pi.metadata?.stakeguard_room_id as string) || null,
+    roomId: (pi.metadata?.blink_room_id as string) || null,
   };
 }
