@@ -53,6 +53,7 @@ export default function CreateJobPage() {
         walletAddress: publicKey.toBase58(),
         title: title.trim(),
         description: description.trim() || undefined,
+        rewardAmount: parseFloat(creatorStake),
         creatorStakeAmount: parseFloat(creatorStake),
         joinerStakeAmount: parseFloat(joinerStake),
         mode,
