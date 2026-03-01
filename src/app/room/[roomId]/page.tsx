@@ -228,17 +228,16 @@ function RoomDetailContent() {
             <div className="bg-purple-500/10 border-2 border-purple-500/40 rounded-xl p-6">
               <h3 className="text-lg font-bold text-purple-300 mb-2">⚠️ Action Required — Stake Your Funds</h3>
               <p className="text-gray-300 text-sm mb-3">
-                <strong>Both parties must stake</strong> to activate the escrow. As the job creator, your wallet will be charged
-                <span className="text-amber-400 font-bold"> {(room?.reward_amount ?? 0)} SOL</span> (reward) +
-                <span className="text-purple-400 font-bold"> {room?.creator_stake_amount} SOL</span> (your stake).
-                The reward goes to the worker on success. Your stake is collateral — slashed if the contract fails.
+                <strong>Both parties must stake</strong> to activate the escrow. As the job creator, you must lock up
+                <span className="text-amber-400 font-bold"> {room?.creator_stake_amount} SOL</span> as a bounty/collateral.
+                This prevents either side from screwing the other — if terms aren&apos;t met, stakes get slashed.
               </p>
               <button
                 onClick={() => doStake(true)}
                 disabled={!!actionLoading || !connected}
                 className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 text-lg"
               >
-                {actionLoading === 'Stake' ? <><span className="animate-spin">⏳</span> Staking...</> : <>💰 Stake {((room?.reward_amount ?? 0) + (room?.creator_stake_amount ?? 0)).toFixed(4)} SOL Now</>}
+                {actionLoading === 'Stake' ? <><span className="animate-spin">⏳</span> Staking...</> : <>💰 Stake {room?.creator_stake_amount} SOL Now</>}
               </button>
             </div>
             {/* Step 2 — Share code */}
@@ -298,25 +297,18 @@ function RoomDetailContent() {
             {/* Stake Summary */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">💰 Escrow Summary</h3>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-500 mb-1">🏆 Reward</p>
-                  <p className="text-xl font-bold text-amber-400">{room.reward_amount ?? 0} SOL</p>
-                  <p className="text-[10px] text-gray-600 mt-1">Paid to worker on resolve</p>
+                  <p className="text-xs text-gray-500 mb-1">Bounty (Creator)</p>
+                  <p className="text-xl font-bold text-amber-400">{room.creator_stake_amount} SOL</p>
                 </div>
                 <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-500 mb-1">🔒 Creator Stake</p>
-                  <p className="text-xl font-bold text-purple-400">{room.creator_stake_amount} SOL</p>
-                  <p className="text-[10px] text-gray-600 mt-1">Slashed if contract fails</p>
-                </div>
-                <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-500 mb-1">🔒 Worker Stake</p>
+                  <p className="text-xs text-gray-500 mb-1">Worker Stake</p>
                   <p className="text-xl font-bold text-blue-400">{room.joiner_stake_amount} SOL</p>
-                  <p className="text-[10px] text-gray-600 mt-1">Slashed if worker flakes</p>
                 </div>
                 <div className="bg-gray-800/50 rounded-lg p-4 text-center">
                   <p className="text-xs text-gray-500 mb-1">Total Locked</p>
-                  <p className="text-xl font-bold text-green-400">{((room.reward_amount ?? 0) + room.creator_stake_amount + room.joiner_stake_amount).toFixed(4)} SOL</p>
+                  <p className="text-xl font-bold text-green-400">{(room.creator_stake_amount + room.joiner_stake_amount).toFixed(4)} SOL</p>
                 </div>
               </div>
             </div>
@@ -411,7 +403,7 @@ function RoomDetailContent() {
                     <button onClick={() => doStake(isCreator)} disabled={!!actionLoading}
                       className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-medium transition flex items-center justify-center gap-2">
                       {actionLoading === 'Stake' ? <span className="animate-spin">⏳</span> : '💰'}
-                      {actionLoading === 'Stake' ? 'Staking...' : `Stake ${isCreator ? ((room.reward_amount ?? 0) + room.creator_stake_amount).toFixed(4) : room.joiner_stake_amount} SOL`}
+                      {actionLoading === 'Stake' ? 'Staking...' : `Stake ${isCreator ? room.creator_stake_amount : room.joiner_stake_amount} SOL`}
                     </button>
                   )}
 
@@ -454,7 +446,7 @@ function RoomDetailContent() {
 
                 {/* Action descriptions */}
                 <div className="mt-4 space-y-2 text-xs text-gray-500">
-                  <p>💡 <strong>Stake:</strong> Creator deposits reward + stake. Worker deposits their stake. Reward goes to worker on success; both stakes are collateral (slashed on failure).</p>
+                  <p>💡 <strong>Stake:</strong> Both sides lock funds. Creator puts up a bounty; worker puts up collateral. This protects both parties.</p>
                   <p>💡 <strong>Approve:</strong> Signal that the work is done.</p>
                   <p>💡 <strong>Resolve:</strong> Release escrowed SOL to both parties.</p>
                   <p>💡 <strong>Slash:</strong> Burn ALL stakes. Both parties lose.</p>

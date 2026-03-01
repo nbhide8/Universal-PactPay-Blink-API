@@ -18,8 +18,7 @@ export default function CreateJobPage() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
-  const [reward, setReward] = useState('0.1');
-  const [creatorStake, setCreatorStake] = useState('0.05');
+  const [creatorStake, setCreatorStake] = useState('0.1');
   const [joinerStake, setJoinerStake] = useState('0.05');
   const [mode, setMode] = useState<'direct' | 'custodial'>('custodial');
   const [conditions, setConditions] = useState<ContractConditionData[]>([
@@ -45,7 +44,6 @@ export default function CreateJobPage() {
     if (!title.trim()) { setError('Title is required'); return; }
     if (conditions.length === 0) { setError('At least one condition is required'); return; }
     if (conditions.some((c) => !c.description.trim())) { setError('All conditions need a description'); return; }
-    if (parseFloat(reward) <= 0 || parseFloat(creatorStake) <= 0 || parseFloat(joinerStake) <= 0) { setError('Reward, your stake, and the worker stake must all be greater than zero'); return; }
 
     setLoading(true);
     setError('');
@@ -55,7 +53,7 @@ export default function CreateJobPage() {
         walletAddress: publicKey.toBase58(),
         title: title.trim(),
         description: description.trim() || undefined,
-        rewardAmount: parseFloat(reward),
+        rewardAmount: parseFloat(creatorStake),
         creatorStakeAmount: parseFloat(creatorStake),
         joinerStakeAmount: parseFloat(joinerStake),
         mode,
@@ -149,34 +147,23 @@ export default function CreateJobPage() {
         {step === 2 && (
           <div className="space-y-6">
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-2">💰 Reward &amp; Stakes</h3>
-              <p className="text-xs text-gray-500 mb-4">Three separate amounts. The <strong className="text-amber-300">Reward</strong> goes to the worker on success. Both <strong className="text-purple-300">Stakes</strong> are collateral that gets slashed if things go wrong.</p>
-
-              {/* Reward */}
-              <div className="mb-5">
-                <label className="block text-sm font-medium text-amber-300 mb-2">🏆 Worker Reward (SOL)</label>
-                <input type="number" step="0.01" min="0.01" value={reward} onChange={(e) => setReward(e.target.value)}
-                  className="w-full bg-gray-800 border border-amber-700/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
-                <p className="text-xs text-gray-500 mt-1">Paid to the worker when the job is resolved successfully. Returned to you if not resolved.</p>
-              </div>
-
+              <h3 className="text-lg font-semibold mb-4">💰 Stake Configuration</h3>
               <div className="grid grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-purple-300 mb-2">🔒 Your Stake (SOL)</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Your Bounty (SOL)</label>
                   <input type="number" step="0.01" min="0.01" value={creatorStake} onChange={(e) => setCreatorStake(e.target.value)}
-                    className="w-full bg-gray-800 border border-purple-700/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-purple-500/50" />
-                  <p className="text-xs text-gray-500 mt-1">Your collateral — slashed if contract fails. Keeps you honest.</p>
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+                  <p className="text-xs text-gray-500 mt-1">Reward for the worker</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-blue-300 mb-2">🔒 Worker Stake (SOL)</label>
-                  <input type="number" step="0.01" min="0.01" value={joinerStake} onChange={(e) => setJoinerStake(e.target.value)}
-                    className="w-full bg-gray-800 border border-blue-700/50 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" />
-                  <p className="text-xs text-gray-500 mt-1">Worker's collateral — slashed if they flake. Keeps them honest.</p>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Worker Stake (SOL)</label>
+                  <input type="number" step="0.01" min="0" value={joinerStake} onChange={(e) => setJoinerStake(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+                  <p className="text-xs text-gray-500 mt-1">Worker puts up as collateral</p>
                 </div>
               </div>
-              <div className="mt-6 bg-gray-800/50 rounded-lg p-4 space-y-1">
-                <p className="text-sm text-gray-400">Total withdrawn from your wallet: <span className="text-amber-400 font-bold">{(parseFloat(reward || '0') + parseFloat(creatorStake || '0')).toFixed(4)} SOL</span> <span className="text-xs text-gray-500">(reward + your stake)</span></p>
-                <p className="text-sm text-gray-400">Total locked in escrow: <span className="text-green-400 font-bold">{(parseFloat(reward || '0') + parseFloat(creatorStake || '0') + parseFloat(joinerStake || '0')).toFixed(4)} SOL</span></p>
+              <div className="mt-6 bg-gray-800/50 rounded-lg p-4">
+                <p className="text-sm text-gray-400">Total locked: <span className="text-amber-400 font-bold">{(parseFloat(creatorStake || '0') + parseFloat(joinerStake || '0')).toFixed(4)} SOL</span></p>
               </div>
             </div>
 
@@ -247,12 +234,10 @@ export default function CreateJobPage() {
               <h3 className="text-lg font-semibold mb-4">📄 Summary</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-400">Title</span><span className="text-white font-medium">{title}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">🏆 Worker Reward</span><span className="text-amber-400 font-bold">{reward} SOL</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">🔒 Your Stake</span><span className="text-purple-400 font-bold">{creatorStake} SOL</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">🔒 Worker Stake</span><span className="text-blue-400 font-bold">{joinerStake} SOL</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Your Bounty</span><span className="text-amber-400 font-bold">{creatorStake} SOL</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Worker Stake</span><span className="text-blue-400 font-bold">{joinerStake} SOL</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white">{mode === 'custodial' ? '💳 Easy Pay' : '🔗 Wallet (On-chain)'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Conditions</span><span className="text-white">{conditions.length}</span></div>
-                <div className="border-t border-gray-800 pt-2 mt-2 flex justify-between"><span className="text-gray-400">Withdrawn from your wallet</span><span className="text-amber-300 font-bold">{(parseFloat(reward || '0') + parseFloat(creatorStake || '0')).toFixed(4)} SOL</span></div>
               </div>
             </div>
 

@@ -143,9 +143,8 @@ export default function DashboardPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full ${badge.color}`}>{badge.label}</span>
                       </div>
                       <div className="flex items-center gap-4 text-sm text-gray-500">
-                        <span>Reward: <span className="text-amber-400">{room.reward_amount ?? 0} SOL</span></span>
-                        <span>Creator Stake: <span className="text-purple-400">{room.creator_stake_amount} SOL</span></span>
-                        <span>Worker Stake: <span className="text-blue-400">{room.joiner_stake_amount} SOL</span></span>
+                        <span>Bounty: <span className="text-amber-400">{room.creator_stake_amount} SOL</span></span>
+                        <span>Stake: <span className="text-blue-400">{room.joiner_stake_amount} SOL</span></span>
                         {room.joiner_id && <span>Worker: <span className="text-gray-400 font-mono">{room.joiner_id.slice(0, 4)}...{room.joiner_id.slice(-4)}</span></span>}
                       </div>
                     </div>

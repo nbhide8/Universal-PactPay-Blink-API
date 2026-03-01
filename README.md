@@ -27,7 +27,7 @@ Every escrow room is a real **Solana on-chain PDA** with locked SOL. The API is 
 |-----------|----------|------|-------------|
 | **Blink API** | `api/` | 3001 | Standalone REST API. Zero frontend dependency. |
 | **PackedPay** | `src/` | 3000 | Demo app that consumes the API. |
-| **Anchor Program** | Solana devnet | — | Program ID: `4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf` |
+| **Anchor Program** | Solana devnet | — | Program ID: `Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ` |
 
 ---
 

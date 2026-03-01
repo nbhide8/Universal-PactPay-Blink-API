@@ -47,7 +47,7 @@ export default function HomePage() {
           Jobs &amp; Rewards Marketplace
         </h1>
         <p className="text-gray-400 text-lg md:text-xl max-w-2xl mb-10">
-          Post a job with a reward, stake SOL as collateral, and workers do the same.
+          Post a job, stake SOL as a bounty guarantee. Workers accept and stake to show commitment.
           Both parties have skin in the game — nobody walks away empty-handed.
         </p>
 
@@ -97,7 +97,7 @@ export default function HomePage() {
               {
                 icon: '📋',
                 title: '1. Post a Job',
-                desc: 'Describe the work. Set a reward for the worker, your stake (collateral), and the worker\'s stake.',
+                desc: 'Describe the work, set the bounty (your stake) and the worker commitment stake. Get a job code.',
               },
               {
                 icon: '🤝',
@@ -107,12 +107,12 @@ export default function HomePage() {
               {
                 icon: '💰',
                 title: '3. Both Stake SOL',
-                desc: 'Creator deposits reward + stake. Worker deposits their stake. All locked in escrow on Solana.',
+                desc: 'Poster stakes the bounty guarantee. Worker stakes commitment. Both locked in escrow on Solana.',
               },
               {
                 icon: '✅',
                 title: '4. Deliver & Resolve',
-                desc: 'Job done? Both approve — worker gets reward, stakes returned. Somebody flakes? Slash — stakes burned.',
+                desc: 'Job done? Both approve, everyone gets SOL back. Somebody flakes? Slash — both lose.',
               },
             ].map((step) => (
               <div
@@ -129,13 +129,12 @@ export default function HomePage() {
 
         {/* Key Points */}
         <div className="mt-16 max-w-3xl w-full bg-gradient-to-r from-amber-900/30 to-orange-900/30 border border-amber-800/50 rounded-2xl p-8 text-left">
-          <h3 className="text-lg font-bold mb-4 text-amber-300">💡 How the 3-way escrow works:</h3>
+          <h3 className="text-lg font-bold mb-4 text-amber-300">💡 Why the poster stakes more:</h3>
           <ul className="space-y-2 text-gray-300 text-sm">
-            <li>• <strong>Reward</strong> — SOL the creator puts up that goes to the worker on success. Returned to creator if not resolved.</li>
-            <li>• <strong>Creator Stake</strong> — Collateral from the creator. Slashed (burned) if the contract fails. Keeps the poster honest.</li>
-            <li>• <strong>Worker Stake</strong> — Collateral from the worker. Slashed if they ghost. Keeps the worker honest.</li>
-            <li>• <strong>Slash?</strong> — Both stakes burned. Nobody wins. Real consequences for bad actors.</li>
-            <li>• <strong>Resolve?</strong> — Worker receives reward. Both parties get their stakes back.</li>
+            <li>• <strong>Poster scams the worker?</strong> — They lose their (higher) stake when slashed</li>
+            <li>• <strong>Worker ghosts the job?</strong> — Poster slashes, worker loses stake (poster also loses as deterrent)</li>
+            <li>• <strong>Job completed successfully?</strong> — Both approve, everyone gets their SOL back</li>
+            <li>• <strong>Disputes?</strong> — Slashing burns both stakes. Creates real consequences for bad actors.</li>
           </ul>
         </div>
 
