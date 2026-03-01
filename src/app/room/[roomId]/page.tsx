@@ -78,7 +78,7 @@ function RoomDetailContent() {
    * - Custodial mode: action handled server-side, just refresh
    * - Direct mode: sign the unsigned transaction and submit
    */
-  async function handleLockbox(lockbox: LockboxResult, actionName: string) {
+  async function handleLockbox(lockbox: LockboxResult, actionName: string, metadata?: Record<string, any>) {
     if (lockbox.mode === 'custodial') {
       setSuccess(`${actionName} completed (custodial mode)`);
       await fetchRoom();
@@ -110,6 +110,7 @@ function RoomDetailContent() {
       roomId,
       action: actionName.toLowerCase(),
       walletAddress: wallet,
+      metadata,
     });
 
     setTxSignature(result.signature);
@@ -117,14 +118,14 @@ function RoomDetailContent() {
     await fetchRoom();
   }
 
-  async function handleAction(actionName: string, fn: () => Promise<any>) {
+  async function handleAction(actionName: string, fn: () => Promise<any>, metadata?: Record<string, any>) {
     setActionLoading(actionName);
     setError('');
     setSuccess('');
     try {
       const result = await fn();
       if (result?.lockbox) {
-        await handleLockbox(result.lockbox, actionName);
+        await handleLockbox(result.lockbox, actionName, metadata);
       } else {
         setSuccess(`${actionName} completed`);
         await fetchRoom();
@@ -157,7 +158,7 @@ function RoomDetailContent() {
     handleAction('Stake', async () => {
       const sig = await buildSigParams('stake');
       return stakeRoom(roomId, { walletAddress: wallet!, isCreator: asCreator, ...sig });
-    });
+    }, { isCreator: asCreator });
   };
 
   const doApprove = () => handleAction('Approve', async () => {
