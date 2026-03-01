@@ -35,6 +35,8 @@ export interface TermsHashInput {
   creatorId: string;
   /** Joiner wallet or identifier (empty string if not yet joined) */
   joinerId?: string;
+  /** Reward amount for the worker */
+  rewardAmount: number;
   /** Creator's required stake amount */
   creatorStakeAmount: number;
   /** Joiner's required stake amount */
@@ -69,6 +71,7 @@ export function computeTermsHash(input: TermsHashInput): string {
       joiner: input.joinerId || '',
     },
     stakes: {
+      reward: input.rewardAmount,
       creator: input.creatorStakeAmount,
       joiner: input.joinerStakeAmount,
     },

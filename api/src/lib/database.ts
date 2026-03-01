@@ -32,6 +32,7 @@ export async function createRoom(
       description: request.description,
       creator_id: userId,
       status: 'pending',
+      reward_amount: request.rewardAmount,
       creator_stake_amount: request.creatorStakeAmount,
       joiner_stake_amount: request.joinerStakeAmount,
       contract_deadline: request.contractDeadline,

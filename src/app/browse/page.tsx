@@ -106,8 +106,8 @@ export default function BrowseJobsPage() {
               className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm">
               <option value="created_at:desc">Newest First</option>
               <option value="created_at:asc">Oldest First</option>
-              <option value="creator_stake_amount:desc">Highest Bounty</option>
-              <option value="creator_stake_amount:asc">Lowest Bounty</option>
+              <option value="creator_stake_amount:desc">Highest Reward</option>
+              <option value="creator_stake_amount:asc">Lowest Reward</option>
             </select>
           </div>
         </div>
@@ -162,16 +162,16 @@ export default function BrowseJobsPage() {
                     )}
                     <div className="grid grid-cols-3 gap-3 mb-4">
                       <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-                        <p className="text-xs text-gray-500 mb-1">Bounty</p>
-                        <p className="text-sm font-bold text-amber-400">{job.creator_stake_amount} SOL</p>
+                        <p className="text-xs text-gray-500 mb-1">Reward</p>
+                        <p className="text-sm font-bold text-amber-400">{job.reward_amount ?? 0} SOL</p>
+                      </div>
+                      <div className="bg-gray-800/50 rounded-lg p-3 text-center">
+                        <p className="text-xs text-gray-500 mb-1">Creator Stake</p>
+                        <p className="text-sm font-bold text-purple-400">{job.creator_stake_amount} SOL</p>
                       </div>
                       <div className="bg-gray-800/50 rounded-lg p-3 text-center">
                         <p className="text-xs text-gray-500 mb-1">Worker Stake</p>
                         <p className="text-sm font-bold text-blue-400">{job.joiner_stake_amount} SOL</p>
-                      </div>
-                      <div className="bg-gray-800/50 rounded-lg p-3 text-center">
-                        <p className="text-xs text-gray-500 mb-1">Total</p>
-                        <p className="text-sm font-bold text-green-400">{job.creator_stake_amount + job.joiner_stake_amount} SOL</p>
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500">

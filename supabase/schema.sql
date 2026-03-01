@@ -159,7 +159,8 @@ CREATE TABLE rooms (
   status room_status DEFAULT 'pending',
   
   -- Staking configuration
-  creator_stake_amount NUMERIC(20,9) NOT NULL,  -- SOL amount creator must stake (higher = more collateral)
+  reward_amount NUMERIC(20,9) NOT NULL,          -- SOL reward paid to worker on successful resolution
+  creator_stake_amount NUMERIC(20,9) NOT NULL,  -- SOL amount creator must stake (slashed if not resolved)
   joiner_stake_amount NUMERIC(20,9) NOT NULL,   -- SOL amount joiner must stake
   
   -- Validation: creator_stake_amount >= joiner_stake_amount (enforced via constraint)
@@ -201,6 +202,14 @@ CREATE TABLE rooms (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Reward must be > 0
+ALTER TABLE rooms ADD CONSTRAINT reward_positive
+  CHECK (reward_amount > 0);
+-- Both stakes must be > 0 (creator AND worker must stake)
+ALTER TABLE rooms ADD CONSTRAINT creator_stake_positive
+  CHECK (creator_stake_amount > 0);
+ALTER TABLE rooms ADD CONSTRAINT joiner_stake_positive
+  CHECK (joiner_stake_amount > 0);
 -- Ensure creator always stakes >= joiner
 ALTER TABLE rooms ADD CONSTRAINT creator_stake_gte_joiner 
   CHECK (creator_stake_amount >= joiner_stake_amount);
