@@ -7,7 +7,7 @@ Unlike traditional escrow, PactPay requires **symmetric collateral**, ensuring n
 
 ---
 
-## 🚀 Motivation
+##  Motivation
 
 Freelancers, collaborators, and online counterparties often lack trust.  
 Standard escrow protects only one side, while informal agreements have no enforcement.
@@ -23,7 +23,7 @@ This creates a system where **breaking the contract is always costly**, making c
 
 ---
 
-## 🧠 Core Idea
+##  Core Idea
 
 1. Two users create a contract with terms.
 2. Both stake collateral.
@@ -46,7 +46,7 @@ Stripe executes the money movement.
 
 ---
 
-## 🔄 Contract Lifecycle
+##  Contract Lifecycle
 
 ### 1. Create Room
 - Creator defines terms, stakes, and reward
@@ -68,30 +68,30 @@ Stripe executes the money movement.
 
 Possible outcomes:
 
-#### ✅ Success
+####  Success
 Both approve completion  
 → Stakes returned  
 → Reward paid
 
-#### 🤝 Mutual Cancel
+####  Mutual Cancel
 Both approve cancel  
 → Stakes returned
 
-#### ❌ Slash
+####  Slash
 One party slashes  
 → Both stakes forfeited
 
-#### ⏱ Timeout (optional)
+####  Timeout (optional)
 Auto‑resolution after deadline
 
 ---
 
-## 🔐 Signature‑Based Consensus
+##  Signature‑Based Consensus
 
 Users sign a message with their wallet:
 
 
-## 🏗 Architecture
+##  Architecture
 
 Smart contract verifies:
 - signer address
@@ -104,7 +104,7 @@ This prevents the backend from arbitrarily releasing funds.
 
 ---
 
-## 💳 Stripe Integration
+##  Stripe Integration
 
 Used features:
 
@@ -117,7 +117,7 @@ Funds remain locked until blockchain consensus is reached.
 
 ---
 
-## ⛓ Smart Contract Role
+##  Smart Contract Role
 
 - Store contract hash
 - Verify signatures
@@ -129,11 +129,11 @@ Blockchain acts as the **source of truth**.
 
 ---
 
-## 🌐 API Endpoints
+##  API Endpoints
 
 ---
 
-## 🎯 Key Features
+##  Key Features
 
 - Symmetric escrow with collateral
 - Fiat escrow using Stripe
@@ -144,7 +144,7 @@ Blockchain acts as the **source of truth**.
 
 ---
 
-## 🔮 Future Work
+##  Future Work
 
 - Fully on‑chain escrow
 - DAO arbitration
@@ -155,7 +155,7 @@ Blockchain acts as the **source of truth**.
 
 ---
 
-## 🏆 Submission Categories
+##  Submission Categories
 
 - Stripe API
 - Blockchain / Smart Contracts
@@ -165,6 +165,7 @@ Blockchain acts as the **source of truth**.
 
 ---
 
-## 👥 Team
-
-Built at HackIllinois 2026
+##  Team
+Akhil Gogineni
+Andy Trujillo
+Neil Bhide
