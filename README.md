@@ -1,4 +1,4 @@
-# Universal-PactPay-Blink-API
+# PactPay-Blink-API
 
 PactPay is a hybrid escrow protocol that combines **Stripe fiat payments** with **blockchain‑verified consensus** to enable trust‑minimized agreements between two untrusted parties.  
 Both participants stake funds, agree on contract terms, and must cryptographically approve the outcome before any money is released.
