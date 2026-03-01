@@ -152,15 +152,16 @@ export default function CreateJobPage() {
             </div>
 
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-              <h3 className="text-lg font-semibold mb-4">🔧 Escrow Mode</h3>
+              <h3 className="text-lg font-semibold mb-2">🔧 Escrow Mode</h3>
+              <p className="text-xs text-gray-500 mb-4">Both modes lock real funds on the Solana blockchain. The difference is how you interact.</p>
               <div className="grid grid-cols-2 gap-4">
                 <button onClick={() => setMode('custodial')} className={`p-4 rounded-lg border transition text-left ${mode === 'custodial' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
-                  <p className="font-semibold text-white mb-1">🏦 Custodial</p>
-                  <p className="text-xs text-gray-400">Platform holds funds. Simpler UX.</p>
+                  <p className="font-semibold text-white mb-1">💳 Easy Pay</p>
+                  <p className="text-xs text-gray-400">Platform handles blockchain. No wallet needed. Pay via card or credits.</p>
                 </button>
                 <button onClick={() => setMode('direct')} className={`p-4 rounded-lg border transition text-left ${mode === 'direct' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
-                  <p className="font-semibold text-white mb-1">🔗 Direct (On-chain)</p>
-                  <p className="text-xs text-gray-400">Smart contract escrow. Fully trustless.</p>
+                  <p className="font-semibold text-white mb-1">🔗 Wallet (On-chain)</p>
+                  <p className="text-xs text-gray-400">Sign transactions yourself. Fully trustless — you hold the keys.</p>
                 </button>
               </div>
             </div>
@@ -219,7 +220,7 @@ export default function CreateJobPage() {
                 <div className="flex justify-between"><span className="text-gray-400">Title</span><span className="text-white font-medium">{title}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Your Bounty</span><span className="text-amber-400 font-bold">{creatorStake} SOL</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Worker Stake</span><span className="text-blue-400 font-bold">{joinerStake} SOL</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white">{mode === 'custodial' ? '🏦 Custodial' : '🔗 Direct'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white">{mode === 'custodial' ? '💳 Easy Pay' : '🔗 Wallet (On-chain)'}</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Conditions</span><span className="text-white">{conditions.length}</span></div>
               </div>
             </div>
