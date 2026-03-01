@@ -223,11 +223,30 @@ function RoomDetailContent() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         {/* Banners */}
         {justCreated && joinCode && (
-          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 mb-6">
-            <h3 className="text-lg font-bold text-green-400 mb-2">🎉 Job Created!</h3>
-            <p className="text-gray-300 mb-3">Share this code with a worker to accept the job:</p>
-            <div className="bg-gray-900 rounded-lg p-4 text-center">
-              <span className="text-3xl font-mono font-bold text-amber-400 tracking-widest">{joinCode}</span>
+          <div className="space-y-4 mb-6">
+            {/* Step 1 — Stake prompt (most important) */}
+            <div className="bg-purple-500/10 border-2 border-purple-500/40 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-purple-300 mb-2">⚠️ Action Required — Stake Your Funds</h3>
+              <p className="text-gray-300 text-sm mb-3">
+                <strong>Both parties must stake</strong> to activate the escrow. As the job creator, you must lock up
+                <span className="text-amber-400 font-bold"> {room?.creator_stake_amount} SOL</span> as a bounty/collateral.
+                This prevents either side from screwing the other — if terms aren&apos;t met, stakes get slashed.
+              </p>
+              <button
+                onClick={() => doStake(true)}
+                disabled={!!actionLoading || !connected}
+                className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 text-lg"
+              >
+                {actionLoading === 'Stake' ? <><span className="animate-spin">⏳</span> Staking...</> : <>💰 Stake {room?.creator_stake_amount} SOL Now</>}
+              </button>
+            </div>
+            {/* Step 2 — Share code */}
+            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6">
+              <h3 className="text-lg font-bold text-green-400 mb-2">📤 Then Share the Join Code</h3>
+              <p className="text-gray-300 text-sm mb-3">Give this code to a worker so they can join and stake their side:</p>
+              <div className="bg-gray-900 rounded-lg p-4 text-center">
+                <span className="text-3xl font-mono font-bold text-amber-400 tracking-widest">{joinCode}</span>
+              </div>
             </div>
           </div>
         )}
@@ -427,6 +446,7 @@ function RoomDetailContent() {
 
                 {/* Action descriptions */}
                 <div className="mt-4 space-y-2 text-xs text-gray-500">
+                  <p>💡 <strong>Stake:</strong> Both sides lock funds. Creator puts up a bounty; worker puts up collateral. This protects both parties.</p>
                   <p>💡 <strong>Approve:</strong> Signal that the work is done.</p>
                   <p>💡 <strong>Resolve:</strong> Release escrowed SOL to both parties.</p>
                   <p>💡 <strong>Slash:</strong> Burn ALL stakes. Both parties lose.</p>
