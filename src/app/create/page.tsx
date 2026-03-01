@@ -3,350 +3,237 @@
 import React, { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import type { ConditionType, ContractConditionData } from '@/lib/types';
-import { apiUrl } from '@/lib/api';
+import { useRouter } from 'next/navigation';
+import { createRoom, type ConditionType, type ContractConditionData } from '@/lib/api';
 
-export default function PostJobPage() {
-  const { connected, publicKey } = useWallet();
+export default function CreateJobPage() {
   const router = useRouter();
+  const { publicKey, connected } = useWallet();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [step, setStep] = useState(1);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [creatorStake, setCreatorStake] = useState('');
-  const [joinerStake, setJoinerStake] = useState('');
-  const [termsSummary, setTermsSummary] = useState('');
-  const [additionalNotes, setAdditionalNotes] = useState('');
-  const [contractDeadline, setContractDeadline] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [tags, setTags] = useState('');
+  const [creatorStake, setCreatorStake] = useState('0.1');
+  const [joinerStake, setJoinerStake] = useState('0.05');
+  const [mode, setMode] = useState<'direct' | 'custodial'>('custodial');
   const [conditions, setConditions] = useState<ContractConditionData[]>([
-    {
-      type: 'task_completion',
-      title: '',
-      description: '',
-      responsible_party: 'joiner',
-      stake_weight: 100,
-    },
+    { type: 'task_completion' as ConditionType, description: 'Complete the assigned task as described', required: true },
   ]);
 
   const addCondition = () => {
-    setConditions([
-      ...conditions,
-      {
-        type: 'task_completion',
-        title: '',
-        description: '',
-        responsible_party: 'joiner',
-        stake_weight: 0,
-      },
-    ]);
+    setConditions([...conditions, { type: 'custom' as ConditionType, description: '', required: true }]);
   };
 
-  const removeCondition = (index: number) => {
-    setConditions(conditions.filter((_, i) => i !== index));
+  const removeCondition = (i: number) => {
+    setConditions(conditions.filter((_, idx) => idx !== i));
   };
 
-  const updateCondition = (index: number, field: string, value: any) => {
+  const updateCondition = (i: number, field: keyof ContractConditionData, value: any) => {
     const updated = [...conditions];
-    (updated[index] as any)[field] = value;
+    (updated[i] as any)[field] = value;
     setConditions(updated);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
-    if (!publicKey) {
-      setError('Please connect your wallet first');
-      return;
-    }
-
-    const bountyAmount = parseFloat(creatorStake);
-    const workerStake = parseFloat(joinerStake);
-
-    if (bountyAmount < workerStake) {
-      setError('Bounty (your stake) must be >= worker stake — you need more skin in the game!');
-      return;
-    }
-
-    if (bountyAmount <= 0 || workerStake <= 0) {
-      setError('Stake amounts must be greater than 0');
-      return;
-    }
+  const handleSubmit = async () => {
+    if (!connected || !publicKey) { setError('Connect your wallet first'); return; }
+    if (!title.trim()) { setError('Title is required'); return; }
+    if (conditions.length === 0) { setError('At least one condition is required'); return; }
+    if (conditions.some((c) => !c.description.trim())) { setError('All conditions need a description'); return; }
 
     setLoading(true);
+    setError('');
+
     try {
-      const response = await fetch(apiUrl('/api/v1/rooms'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: publicKey.toBase58(),
-          title,
-          description,
-          creatorStakeAmount: bountyAmount,
-          joinerStakeAmount: workerStake,
-          contractDeadline: contractDeadline || undefined,
-          terms: {
-            title: `Job Terms: ${title}`,
-            summary: termsSummary,
-            conditions: conditions.filter((c) => c.title.trim()),
-            additionalNotes: additionalNotes || undefined,
-          },
-        }),
+      const result = await createRoom({
+        walletAddress: publicKey.toBase58(),
+        title: title.trim(),
+        description: description.trim() || undefined,
+        creatorStakeAmount: parseFloat(creatorStake),
+        joinerStakeAmount: parseFloat(joinerStake),
+        mode,
+        tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+        terms: {
+          title: title.trim(),
+          summary: description.trim() || title.trim(),
+          conditions,
+        },
       });
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to post job');
-      }
-
-      router.push(`/room/${data.room.id}?joinCode=${data.room.join_code}`);
+      router.push(`/room/${result.room.id}?created=true&joinCode=${result.room.join_code}`);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to create job');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!connected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">Connect Wallet</h1>
-          <p className="text-gray-400 mb-6">Connect your Solana wallet to post a job</p>
+  return (
+    <div className="min-h-screen">
+      <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-10">
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-xl font-bold text-amber-400 hover:text-amber-300">StakeWork</Link>
+            <span className="text-gray-500">|</span>
+            <h1 className="text-lg font-semibold">Post a Job</h1>
+          </div>
           <WalletMultiButton />
         </div>
-      </div>
-    );
-  }
+      </header>
 
-  return (
-    <div className="min-h-screen px-4 py-8">
-      <div className="max-w-2xl mx-auto">
-        <Link href="/" className="text-amber-400 hover:text-amber-300 mb-6 inline-block">
-          ← Back to Marketplace
-        </Link>
-
-        <h1 className="text-3xl font-bold mb-2">Post a Job</h1>
-        <p className="text-gray-400 mb-8">
-          Describe the work, set your bounty and the worker&apos;s commitment stake. You&apos;ll get a job code to share.
-        </p>
+      <main className="max-w-3xl mx-auto px-4 py-8">
+        {/* Step indicator */}
+        <div className="flex items-center gap-4 mb-8">
+          {[1, 2, 3].map((s) => (
+            <div key={s} className="flex items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition ${step >= s ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-500'}`}>{s}</div>
+              <span className={`text-sm ${step >= s ? 'text-white' : 'text-gray-500'}`}>{['Details', 'Stakes', 'Conditions'][s - 1]}</span>
+              {s < 3 && <div className={`w-12 h-0.5 ${step > s ? 'bg-amber-600' : 'bg-gray-800'}`} />}
+            </div>
+          ))}
+        </div>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg mb-6">
-            {error}
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+            <p className="text-red-400 text-sm">{error}</p>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Job Details */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">Job Details</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Job Title *</label>
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g., Build a responsive landing page"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe the work to be done..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-24 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Deadline</label>
-                <input
-                  type="datetime-local"
-                  value={contractDeadline}
-                  onChange={(e) => setContractDeadline(e.target.value)}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                />
-              </div>
+        {/* Step 1: Details */}
+        {step === 1 && (
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Job Title *</label>
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Build a landing page"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Description</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Describe the work to be done..." rows={5}
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50 resize-none" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Tags (comma-separated)</label>
+              <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="e.g. React, Solana, Frontend"
+                className="w-full bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+            </div>
+            <div className="flex justify-end">
+              <button onClick={() => { if (!title.trim()) { setError('Title is required'); return; } setError(''); setStep(2); }}
+                className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-lg font-medium transition">Next: Set Stakes →</button>
             </div>
           </div>
+        )}
 
-          {/* Stake Amounts */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-2">Stakes (SOL)</h2>
-            <p className="text-sm text-gray-500 mb-4">
-              Your bounty stake must be ≥ the worker&apos;s commitment stake. Higher bounty = more trust from workers.
-            </p>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Your bounty stake *</label>
-                <input
-                  type="number"
-                  value={creatorStake}
-                  onChange={(e) => setCreatorStake(e.target.value)}
-                  placeholder="e.g., 2.0"
-                  step="0.001"
-                  min="0.001"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">Locked as bounty guarantee</p>
+        {/* Step 2: Stakes */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-4">💰 Stake Configuration</h3>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Your Bounty (SOL)</label>
+                  <input type="number" step="0.01" min="0.01" value={creatorStake} onChange={(e) => setCreatorStake(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+                  <p className="text-xs text-gray-500 mt-1">Reward for the worker</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Worker Stake (SOL)</label>
+                  <input type="number" step="0.01" min="0" value={joinerStake} onChange={(e) => setJoinerStake(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+                  <p className="text-xs text-gray-500 mt-1">Worker puts up as collateral</p>
+                </div>
               </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Worker&apos;s stake *</label>
-                <input
-                  type="number"
-                  value={joinerStake}
-                  onChange={(e) => setJoinerStake(e.target.value)}
-                  placeholder="e.g., 1.0"
-                  step="0.001"
-                  min="0.001"
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white"
-                  required
-                />
-                <p className="text-xs text-gray-500 mt-1">Worker commitment deposit</p>
+              <div className="mt-6 bg-gray-800/50 rounded-lg p-4">
+                <p className="text-sm text-gray-400">Total locked: <span className="text-amber-400 font-bold">{(parseFloat(creatorStake || '0') + parseFloat(joinerStake || '0')).toFixed(4)} SOL</span></p>
               </div>
             </div>
 
-            {creatorStake && joinerStake && parseFloat(creatorStake) < parseFloat(joinerStake) && (
-              <p className="text-red-400 text-sm mt-2">
-                ⚠️ Bounty must be ≥ worker stake
-              </p>
-            )}
-          </div>
-
-          {/* Deliverables */}
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-            <h2 className="text-lg font-semibold mb-4">Deliverables &amp; Terms</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Job Summary *</label>
-                <textarea
-                  value={termsSummary}
-                  onChange={(e) => setTermsSummary(e.target.value)}
-                  placeholder="Summarize what the worker needs to deliver..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-24 resize-none"
-                  required
-                />
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-4">🔧 Escrow Mode</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button onClick={() => setMode('custodial')} className={`p-4 rounded-lg border transition text-left ${mode === 'custodial' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                  <p className="font-semibold text-white mb-1">🏦 Custodial</p>
+                  <p className="text-xs text-gray-400">Platform holds funds. Simpler UX.</p>
+                </button>
+                <button onClick={() => setMode('direct')} className={`p-4 rounded-lg border transition text-left ${mode === 'direct' ? 'border-amber-500 bg-amber-500/10' : 'border-gray-700 hover:border-gray-600'}`}>
+                  <p className="font-semibold text-white mb-1">🔗 Direct (On-chain)</p>
+                  <p className="text-xs text-gray-400">Smart contract escrow. Fully trustless.</p>
+                </button>
               </div>
+            </div>
 
-              {/* Conditions (Deliverables) */}
-              <div>
-                <label className="block text-sm text-gray-400 mb-2">Deliverables / Requirements</label>
-                {conditions.map((condition, index) => (
-                  <div
-                    key={index}
-                    className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-3"
-                  >
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-sm font-medium text-gray-300">
-                        Deliverable #{index + 1}
-                      </span>
+            <div className="flex justify-between">
+              <button onClick={() => setStep(1)} className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition">← Back</button>
+              <button onClick={() => setStep(3)} className="bg-amber-600 hover:bg-amber-500 text-white px-6 py-3 rounded-lg font-medium transition">Next: Conditions →</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 3: Conditions */}
+        {step === 3 && (
+          <div className="space-y-6">
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">📋 Contract Conditions</h3>
+                <button onClick={addCondition} className="text-sm text-amber-400 hover:text-amber-300 transition">+ Add Condition</button>
+              </div>
+              <div className="space-y-4">
+                {conditions.map((cond, i) => (
+                  <div key={i} className="bg-gray-800 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1 space-y-3">
+                        <div className="flex items-center gap-3">
+                          <select value={cond.type} onChange={(e) => updateCondition(i, 'type', e.target.value)}
+                            className="bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white">
+                            <option value="task_completion">Task Completion</option>
+                            <option value="milestone">Milestone</option>
+                            <option value="deadline">Deadline</option>
+                            <option value="custom">Custom</option>
+                          </select>
+                          <label className="flex items-center gap-2">
+                            <input type="checkbox" checked={cond.required} onChange={(e) => updateCondition(i, 'required', e.target.checked)}
+                              className="rounded border-gray-600" />
+                            <span className="text-xs text-gray-400">Required</span>
+                          </label>
+                        </div>
+                        <input type="text" value={cond.description} onChange={(e) => updateCondition(i, 'description', e.target.value)}
+                          placeholder="Describe this condition..."
+                          className="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-500/50" />
+                      </div>
                       {conditions.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => removeCondition(index)}
-                          className="text-red-400 text-sm hover:text-red-300"
-                        >
-                          Remove
-                        </button>
+                        <button onClick={() => removeCondition(i)} className="text-gray-500 hover:text-red-400 transition mt-1">✕</button>
                       )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 mb-3">
-                      <div>
-                        <input
-                          type="text"
-                          value={condition.title}
-                          onChange={(e) => updateCondition(index, 'title', e.target.value)}
-                          placeholder="Deliverable title"
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white"
-                        />
-                      </div>
-                      <div>
-                        <select
-                          value={condition.type}
-                          onChange={(e) =>
-                            updateCondition(index, 'type', e.target.value as ConditionType)
-                          }
-                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white"
-                        >
-                          <option value="task_completion">Task Completion</option>
-                          <option value="delivery">Delivery</option>
-                          <option value="milestone">Milestone</option>
-                          <option value="payment">Payment</option>
-                          <option value="time_based">Time Based</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <textarea
-                      value={condition.description}
-                      onChange={(e) => updateCondition(index, 'description', e.target.value)}
-                      placeholder="Describe this deliverable in detail..."
-                      className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white h-16 resize-none mb-3"
-                    />
-
-                    <div className="flex gap-3">
-                      <select
-                        value={condition.responsible_party}
-                        onChange={(e) =>
-                          updateCondition(index, 'responsible_party', e.target.value)
-                        }
-                        className="bg-gray-700 border border-gray-600 rounded px-3 py-2 text-sm text-white"
-                      >
-                        <option value="joiner">Worker delivers</option>
-                        <option value="creator">Poster provides</option>
-                      </select>
                     </div>
                   </div>
                 ))}
-
-                <button
-                  type="button"
-                  onClick={addCondition}
-                  className="text-amber-400 hover:text-amber-300 text-sm font-medium"
-                >
-                  + Add Deliverable
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-sm text-gray-400 mb-1">Additional Notes</label>
-                <textarea
-                  value={additionalNotes}
-                  onChange={(e) => setAdditionalNotes(e.target.value)}
-                  placeholder="Any additional notes, tech stack requirements, etc..."
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white h-20 resize-none"
-                />
               </div>
             </div>
-          </div>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-lg font-semibold transition"
-          >
-            {loading ? 'Posting Job...' : '📋 Post Job & Get Share Code'}
-          </button>
-        </form>
-      </div>
+            {/* Summary */}
+            <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
+              <h3 className="text-lg font-semibold mb-4">📄 Summary</h3>
+              <div className="space-y-2 text-sm">
+                <div className="flex justify-between"><span className="text-gray-400">Title</span><span className="text-white font-medium">{title}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Your Bounty</span><span className="text-amber-400 font-bold">{creatorStake} SOL</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Worker Stake</span><span className="text-blue-400 font-bold">{joinerStake} SOL</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white">{mode === 'custodial' ? '🏦 Custodial' : '🔗 Direct'}</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Conditions</span><span className="text-white">{conditions.length}</span></div>
+              </div>
+            </div>
+
+            <div className="flex justify-between">
+              <button onClick={() => setStep(2)} className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition">← Back</button>
+              <button onClick={handleSubmit} disabled={loading || !connected}
+                className="bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white px-8 py-3 rounded-lg font-medium transition flex items-center gap-2">
+                {loading ? <><span className="animate-spin">⏳</span> Creating...</> : '🚀 Create Job'}
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
