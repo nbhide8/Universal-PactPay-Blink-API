@@ -1,26 +1,26 @@
 /**
- * IDL for Blink Anchor program.
- * Generated manually from contracts/blink.rs — replace with the
- * output of `anchor build` (target/idl/blink.json) once the
+ * IDL for StakeGuard Anchor program.
+ * Generated manually from contracts/stakeguard.rs — replace with the
+ * output of `anchor build` (target/idl/stakeguard.json) once the
  * program is compiled.
  *
  * Instruction discriminators = sha256("global:<snake_case_fn_name>")[0..8]
  * Account discriminators     = sha256("account:<PascalCaseName>")[0..8]
  */
 export const IDL = {
-  address: 'Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ',
+  address: '4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf',
   metadata: {
-    name: 'blink',
+    name: 'stakeguard',
     version: '0.1.0',
     spec: '0.1.0',
-    description: 'Blink trustless escrow platform',
+    description: 'StakeGuard trustless escrow platform',
   },
 
   // ─── Instructions ───────────────────────────────────────────────────────────
   instructions: [
     {
       name: 'initializeRoom',
-      discriminator: [163, 134, 140, 192, 15, 6, 227, 23],
+      discriminator: [216, 42, 137, 161, 61, 72, 154, 238],
       accounts: [
         {
           name: 'escrowAccount',
@@ -46,7 +46,7 @@ export const IDL = {
 
     {
       name: 'stake',
-      discriminator: [254, 32, 189, 253, 3, 2, 123, 132],
+      discriminator: [206, 176, 202, 18, 200, 209, 179, 108],
       accounts: [
         {
           name: 'escrowAccount',
@@ -84,7 +84,7 @@ export const IDL = {
 
     {
       name: 'approveResolve',
-      discriminator: [22, 195, 89, 204, 71, 180, 193, 12],
+      discriminator: [100, 234, 124, 183, 248, 225, 40, 99],
       accounts: [
         {
           name: 'escrowAccount',
@@ -106,7 +106,7 @@ export const IDL = {
 
     {
       name: 'resolve',
-      discriminator: [162, 136, 9, 179, 86, 213, 52, 160],
+      discriminator: [246, 150, 236, 206, 108, 63, 58, 10],
       accounts: [
         {
           name: 'escrowAccount',
@@ -154,7 +154,7 @@ export const IDL = {
 
     {
       name: 'slash',
-      discriminator: [190, 242, 137, 27, 41, 18, 233, 37],
+      discriminator: [204, 141, 18, 161, 8, 177, 92, 142],
       accounts: [
         {
           name: 'escrowAccount',
@@ -201,7 +201,7 @@ export const IDL = {
 
     {
       name: 'cancelRoom',
-      discriminator: [103, 12, 207, 43, 105, 78, 220, 18],
+      discriminator: [91, 107, 215, 178, 200, 224, 241, 237],
       accounts: [
         {
           name: 'escrowAccount',
@@ -224,10 +224,46 @@ export const IDL = {
   ],
 
   // ─── Accounts ────────────────────────────────────────────────────────────────
+  // Anchor 0.30 format: only name + discriminator here; struct defs go in types[]
   accounts: [
+    { name: 'RoomEscrow', discriminator: [217, 21, 224, 203, 129, 4, 248, 150] },
+    { name: 'StakeRecord', discriminator: [174, 163, 11, 208, 150, 236, 11, 205] },
+  ],
+
+  // ─── Events ──────────────────────────────────────────────────────────────────
+  // Anchor 0.30 format: only name + discriminator; struct defs go in types[]
+  events: [
+    { name: 'RoomInitialized', discriminator: [0, 0, 0, 0, 0, 0, 0, 0] },
+    { name: 'Staked', discriminator: [0, 0, 0, 0, 0, 0, 0, 1] },
+    { name: 'ResolveApproved', discriminator: [0, 0, 0, 0, 0, 0, 0, 2] },
+    { name: 'RoomResolved', discriminator: [0, 0, 0, 0, 0, 0, 0, 3] },
+    { name: 'RoomSlashed', discriminator: [0, 0, 0, 0, 0, 0, 0, 4] },
+    { name: 'RoomCancelled', discriminator: [0, 0, 0, 0, 0, 0, 0, 5] },
+  ],
+
+  // ─── Errors ──────────────────────────────────────────────────────────────────
+  errors: [
+    { code: 6000, name: 'InvalidAmount', msg: 'Invalid amount: must be greater than 0' },
+    { code: 6001, name: 'CreatorStakeTooLow', msg: 'Creator stake must be >= joiner stake (skin in the game)' },
+    { code: 6002, name: 'EscrowNotActive', msg: 'Escrow is not active' },
+    { code: 6003, name: 'InvalidRoom', msg: 'Invalid room ID' },
+    { code: 6004, name: 'InvalidParticipant', msg: 'Invalid participant' },
+    { code: 6005, name: 'UnauthorizedStaker', msg: 'Unauthorized staker' },
+    { code: 6006, name: 'StakeExceedsRequired', msg: 'Stake exceeds required amount' },
+    { code: 6007, name: 'NotFullyFunded', msg: 'Room is not fully funded yet' },
+    { code: 6008, name: 'AlreadyFullyFunded', msg: 'Room is already fully funded, cannot cancel' },
+    { code: 6009, name: 'UnauthorizedSigner', msg: 'Unauthorized signer' },
+    { code: 6010, name: 'BothPartiesMustApprove', msg: 'Both parties must approve before resolving' },
+    { code: 6011, name: 'AlreadyApproved', msg: 'Already approved' },
+    { code: 6012, name: 'InvalidPenaltyWallet', msg: 'Invalid penalty wallet' },
+    { code: 6013, name: 'InsufficientFunds', msg: 'Insufficient funds' },
+    { code: 6014, name: 'ArithmeticOverflow', msg: 'Arithmetic overflow' },
+  ],
+
+  // ─── Types ───────────────────────────────────────────────────────────────────
+  types: [
     {
       name: 'RoomEscrow',
-      discriminator: [97, 208, 41, 253, 226, 168, 168, 50],
       type: {
         kind: 'struct',
         fields: [
@@ -249,7 +285,6 @@ export const IDL = {
     },
     {
       name: 'StakeRecord',
-      discriminator: [199, 197, 62, 218, 192, 165, 173, 35],
       type: {
         kind: 'struct',
         fields: [
@@ -263,90 +298,79 @@ export const IDL = {
         ],
       },
     },
-  ],
-
-  // ─── Events ──────────────────────────────────────────────────────────────────
-  events: [
     {
       name: 'RoomInitialized',
-      discriminator: [0, 0, 0, 0, 0, 0, 0, 0],
-      fields: [
-        { name: 'roomId', type: 'string' },
-        { name: 'creator', type: 'pubkey' },
-        { name: 'creatorStakeAmount', type: 'u64' },
-        { name: 'joinerStakeAmount', type: 'u64' },
-      ],
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'roomId', type: 'string' },
+          { name: 'creator', type: 'pubkey' },
+          { name: 'creatorStakeAmount', type: 'u64' },
+          { name: 'joinerStakeAmount', type: 'u64' },
+        ],
+      },
     },
     {
       name: 'Staked',
-      discriminator: [0, 0, 0, 0, 0, 0, 0, 1],
-      fields: [
-        { name: 'roomId', type: 'string' },
-        { name: 'participantId', type: 'string' },
-        { name: 'staker', type: 'pubkey' },
-        { name: 'amount', type: 'u64' },
-        { name: 'isCreator', type: 'bool' },
-        { name: 'totalStaked', type: 'u64' },
-        { name: 'isFullyFunded', type: 'bool' },
-      ],
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'roomId', type: 'string' },
+          { name: 'participantId', type: 'string' },
+          { name: 'staker', type: 'pubkey' },
+          { name: 'amount', type: 'u64' },
+          { name: 'isCreator', type: 'bool' },
+          { name: 'totalStaked', type: 'u64' },
+          { name: 'isFullyFunded', type: 'bool' },
+        ],
+      },
     },
     {
       name: 'ResolveApproved',
-      discriminator: [0, 0, 0, 0, 0, 0, 0, 2],
-      fields: [
-        { name: 'roomId', type: 'string' },
-        { name: 'approver', type: 'pubkey' },
-        { name: 'creatorApproved', type: 'bool' },
-        { name: 'joinerApproved', type: 'bool' },
-      ],
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'roomId', type: 'string' },
+          { name: 'approver', type: 'pubkey' },
+          { name: 'creatorApproved', type: 'bool' },
+          { name: 'joinerApproved', type: 'bool' },
+        ],
+      },
     },
     {
       name: 'RoomResolved',
-      discriminator: [0, 0, 0, 0, 0, 0, 0, 3],
-      fields: [
-        { name: 'roomId', type: 'string' },
-        { name: 'creatorReturned', type: 'u64' },
-        { name: 'joinerReturned', type: 'u64' },
-      ],
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'roomId', type: 'string' },
+          { name: 'creatorReturned', type: 'u64' },
+          { name: 'joinerReturned', type: 'u64' },
+        ],
+      },
     },
     {
       name: 'RoomSlashed',
-      discriminator: [0, 0, 0, 0, 0, 0, 0, 4],
-      fields: [
-        { name: 'roomId', type: 'string' },
-        { name: 'slashedBy', type: 'pubkey' },
-        { name: 'creatorLost', type: 'u64' },
-        { name: 'joinerLost', type: 'u64' },
-        { name: 'totalPenalty', type: 'u64' },
-      ],
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'roomId', type: 'string' },
+          { name: 'slashedBy', type: 'pubkey' },
+          { name: 'creatorLost', type: 'u64' },
+          { name: 'joinerLost', type: 'u64' },
+          { name: 'totalPenalty', type: 'u64' },
+        ],
+      },
     },
     {
       name: 'RoomCancelled',
-      discriminator: [0, 0, 0, 0, 0, 0, 0, 5],
-      fields: [
-        { name: 'roomId', type: 'string' },
-        { name: 'cancelledBy', type: 'pubkey' },
-      ],
+      type: {
+        kind: 'struct',
+        fields: [
+          { name: 'roomId', type: 'string' },
+          { name: 'cancelledBy', type: 'pubkey' },
+        ],
+      },
     },
-  ],
-
-  // ─── Errors ──────────────────────────────────────────────────────────────────
-  errors: [
-    { code: 6000, name: 'InvalidAmount', msg: 'Invalid amount: must be greater than 0' },
-    { code: 6001, name: 'CreatorStakeTooLow', msg: 'Creator stake must be >= joiner stake (skin in the game)' },
-    { code: 6002, name: 'EscrowNotActive', msg: 'Escrow is not active' },
-    { code: 6003, name: 'InvalidRoom', msg: 'Invalid room ID' },
-    { code: 6004, name: 'InvalidParticipant', msg: 'Invalid participant' },
-    { code: 6005, name: 'UnauthorizedStaker', msg: 'Unauthorized staker' },
-    { code: 6006, name: 'StakeExceedsRequired', msg: 'Stake exceeds required amount' },
-    { code: 6007, name: 'NotFullyFunded', msg: 'Room is not fully funded yet' },
-    { code: 6008, name: 'AlreadyFullyFunded', msg: 'Room is already fully funded, cannot cancel' },
-    { code: 6009, name: 'UnauthorizedSigner', msg: 'Unauthorized signer' },
-    { code: 6010, name: 'BothPartiesMustApprove', msg: 'Both parties must approve before resolving' },
-    { code: 6011, name: 'AlreadyApproved', msg: 'Already approved' },
-    { code: 6012, name: 'InvalidPenaltyWallet', msg: 'Invalid penalty wallet' },
-    { code: 6013, name: 'InsufficientFunds', msg: 'Insufficient funds' },
-    { code: 6014, name: 'ArithmeticOverflow', msg: 'Arithmetic overflow' },
   ],
 } as const;
 

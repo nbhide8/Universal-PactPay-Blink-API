@@ -1,7 +1,7 @@
 // use anchor_lang::prelude::*;
 // use anchor_lang::system_program;
 
-// declare_id!("Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ");
+// declare_id!("4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf");
 
 // // Fixed penalty wallet - hardcoded in contract
 // const PENALTY_WALLET: &str = "2c8QGXM2tRMh7yb1Zva48ZmQTPMmLZCu159x2hscxxwv";

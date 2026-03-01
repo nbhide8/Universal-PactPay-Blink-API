@@ -11,7 +11,7 @@
 // import { getApartmentById } from '@/lib/database';
 
 // // Constants
-// const PROGRAM_ID = new PublicKey('Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ');
+// const PROGRAM_ID = new PublicKey('4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf');
 // const PENALTY_WALLET = new PublicKey('2c8QGXM2tRMh7yb1Zva48ZmQTPMmLZCu159x2hscxxwv');   // THIS CAN'T CHANGE. IT MUST MATCH THE PENALTY WALLET IN THE CONTRACT.
 
 // // Utility functions
@@ -865,7 +865,7 @@
 //   StakeRecordSchema 
 // } from '../utils/schemas';
 
-// const PROGRAM_ID = new PublicKey('Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ');
+// const PROGRAM_ID = new PublicKey('4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf');
 // const PENALTY_WALLET = address('2c8QGXM2tRMh7yb1Zva48ZmQTPMmLZCu159x2hscxxwv');
 
 // // Create Solana client
