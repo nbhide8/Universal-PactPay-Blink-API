@@ -3,13 +3,14 @@
 import React, { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
+import { Transaction } from '@solana/web3.js';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createRoom, type ConditionType, type ContractConditionData } from '@/lib/api';
+import { createRoom, submitTransaction, type ConditionType, type ContractConditionData } from '@/lib/api';
 
 export default function CreateJobPage() {
   const router = useRouter();
-  const { publicKey, connected } = useWallet();
+  const { publicKey, connected, signTransaction } = useWallet();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
@@ -62,6 +63,20 @@ export default function CreateJobPage() {
           conditions,
         },
       });
+
+      // Direct mode: sign and submit the on-chain init transaction
+      if (result.lockbox?.mode === 'direct' && result.lockbox.action?.payload && signTransaction) {
+        const txBytes = Buffer.from(result.lockbox.action.payload, 'base64');
+        const tx = Transaction.from(txBytes);
+        const signed = await signTransaction(tx);
+        const signedBase64 = Buffer.from(signed.serialize()).toString('base64');
+        await submitTransaction({
+          signedTransaction: signedBase64,
+          roomId: result.room.id,
+          action: 'initialize_room',
+          walletAddress: publicKey.toBase58(),
+        });
+      }
 
       router.push(`/room/${result.room.id}?created=true&joinCode=${result.room.join_code}`);
     } catch (err: any) {
