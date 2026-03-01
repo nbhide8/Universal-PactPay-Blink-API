@@ -5,6 +5,8 @@ import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
 
+const API_DOCS_URL = `${(process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001').replace(/\/+$/, '')}/api/v1/docs`;
+
 export default function HomePage() {
   const { connected } = useWallet();
 
@@ -28,9 +30,9 @@ export default function HomePage() {
                 My Jobs
               </Link>
             )}
-            <Link href="/api/v1/docs" className="text-gray-400 hover:text-white transition">
+            <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition">
               API
-            </Link>
+            </a>
           </div>
         </div>
         <WalletMultiButton />
@@ -144,9 +146,9 @@ export default function HomePage() {
           </div>
           <p className="text-gray-400 mb-6">
             This marketplace is powered by the{' '}
-            <Link href="/api/v1/docs" className="text-violet-400 hover:text-violet-300 underline">
+            <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline">
               StakeGuard API
-            </Link>
+            </a>
             {' '}— a standalone REST API deployed independently on Railway.
             <strong className="text-gray-200"> Every escrow is backed by the Solana blockchain.</strong>
             {' '}Non-crypto users interact through a custodial mode — they pay via Stripe or company credits,
@@ -228,12 +230,13 @@ curl -X POST https://api.stakeguard.app/api/v1/rooms \\
 # → Platform wallet creates on-chain escrow instantly, no user action needed`}</code></pre>
           </div>
           <div className="mt-4 text-center">
-            <Link
-              href="/api/v1/docs"
+            <a
+              href={API_DOCS_URL}
+              target="_blank" rel="noopener noreferrer"
               className="text-violet-400 hover:text-violet-300 text-sm font-medium"
             >
               View Full API Documentation →
-            </Link>
+            </a>
           </div>
         </div>
       </main>
@@ -245,7 +248,7 @@ curl -X POST https://api.stakeguard.app/api/v1/rooms \\
           <span>•</span>
           <span>Solana Devnet</span>
           <span>•</span>
-          <Link href="/api/v1/docs" className="text-violet-400 hover:text-violet-300">StakeGuard API</Link>
+          <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300">StakeGuard API</a>
           <span>•</span>
           <Link href="/browse" className="text-amber-400 hover:text-amber-300">Browse Jobs</Link>
         </div>

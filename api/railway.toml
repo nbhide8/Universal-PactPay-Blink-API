@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Railway Deployment — StakeGuard API (standalone)
+#
+# This deploys the API as an independent service on Railway.
+# The frontend (StakeWork) is deployed SEPARATELY and calls this API
+# via NEXT_PUBLIC_API_URL.
+#
+# The API has ZERO dependency on the frontend. Any company can:
+#   1. Deploy this to Railway
+#   2. Set their API key
+#   3. Build their own app that calls it
+#
+# Required env vars (set in Railway dashboard):
+#   NEXT_PUBLIC_SUPABASE_URL
+#   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+#   NEXT_PUBLIC_SOLANA_RPC_URL
+#   STAKEGUARD_API_KEY          — Required for API key auth
+#   PLATFORM_WALLET_SECRET      — Required for custodial mode
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build]
+builder = "nixpacks"
+buildCommand = "bun install && bun run build"
+
+[deploy]
+startCommand = "bun run start"
+healthcheckPath = "/api/v1/docs"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[service]
+internalPort = 3000

@@ -1,116 +1,106 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { apiUrl } from '@/lib/api';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { joinRoom } from '@/lib/api';
 
-export default function AcceptJobPage() {
-  const { connected, publicKey } = useWallet();
+function JoinJobContent() {
   const router = useRouter();
-
+  const searchParams = useSearchParams();
+  const { publicKey, connected } = useWallet();
   const [joinCode, setJoinCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const handleAccept = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) setJoinCode(code);
+  }, [searchParams]);
 
-    if (!publicKey) {
-      setError('Please connect your wallet');
-      return;
-    }
-
-    if (joinCode.trim().length !== 6) {
-      setError('Job code must be 6 characters');
-      return;
-    }
+  const handleJoin = async () => {
+    if (!connected || !publicKey) { setError('Connect your wallet first'); return; }
+    if (!joinCode.trim()) { setError('Enter a join code'); return; }
 
     setLoading(true);
+    setError('');
+
     try {
-      const response = await fetch(apiUrl('/api/v1/rooms/join'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId: publicKey.toBase58(),
-          walletAddress: publicKey.toBase58(),
-          joinCode: joinCode.toUpperCase(),
-        }),
+      const { room } = await joinRoom({
+        walletAddress: publicKey.toBase58(),
+        joinCode: joinCode.trim(),
       });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to accept job');
-      }
-
-      const room = await response.json();
-      router.push(`/room/${room.id}`);
+      router.push(`/room/${room.id}?joined=true`);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to join');
     } finally {
       setLoading(false);
     }
   };
 
-  if (!connected) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold mb-4">Connect Wallet</h1>
-          <p className="text-gray-400 mb-6">Connect your wallet to accept a job</p>
+  return (
+    <div className="min-h-screen">
+      <header className="border-b border-gray-800 bg-gray-950/80 backdrop-blur sticky top-0 z-10">
+        <div className="max-w-xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-xl font-bold text-amber-400 hover:text-amber-300">StakeWork</Link>
+            <span className="text-gray-500">|</span>
+            <h1 className="text-lg font-semibold">Join a Job</h1>
+          </div>
           <WalletMultiButton />
         </div>
-      </div>
-    );
-  }
+      </header>
 
-  return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <Link href="/" className="text-amber-400 hover:text-amber-300 mb-6 inline-block">
-          ← Back to Marketplace
-        </Link>
-
-        <h1 className="text-3xl font-bold mb-2">Accept a Job</h1>
-        <p className="text-gray-400 mb-8">
-          Enter the 6-character job code shared by the poster.
-        </p>
-
-        {error && (
-          <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg mb-6">
-            {error}
-          </div>
-        )}
-
-        <form onSubmit={handleAccept} className="space-y-6">
-          <div className="bg-gray-900 border border-gray-800 rounded-xl p-8 text-center">
-            <label className="block text-sm text-gray-400 mb-4">Job Code</label>
-            <input
-              type="text"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase().slice(0, 6))}
-              placeholder="ABC123"
-              maxLength={6}
-              className="w-full text-center text-4xl font-mono tracking-[0.5em] bg-gray-800 border border-gray-700 rounded-lg px-4 py-4 text-white uppercase"
-              required
-            />
-            <p className="text-xs text-gray-500 mt-3">
-              The job poster should have shared this code with you
-            </p>
+      <main className="max-w-xl mx-auto px-4 py-12">
+        <div className="bg-gray-900 border border-gray-800 rounded-xl p-8">
+          <div className="text-center mb-8">
+            <div className="text-5xl mb-4">🤝</div>
+            <h2 className="text-2xl font-bold mb-2">Accept a Job</h2>
+            <p className="text-gray-400">Enter the join code shared by the job poster</p>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading || joinCode.length !== 6}
-            className="w-full py-4 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl text-lg font-semibold transition"
-          >
-            {loading ? 'Accepting...' : '🤝 Accept Job'}
-          </button>
-        </form>
-      </div>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
+              <p className="text-red-400 text-sm">{error}</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-300 mb-2">Join Code</label>
+              <input type="text" value={joinCode} onChange={(e) => setJoinCode(e.target.value.toUpperCase())} placeholder="ABCD1234"
+                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-4 text-white text-center text-2xl font-mono tracking-widest uppercase focus:outline-none focus:ring-2 focus:ring-amber-500/50"
+                onKeyDown={(e) => e.key === 'Enter' && handleJoin()} />
+            </div>
+
+            <button onClick={handleJoin} disabled={loading || !connected || !joinCode.trim()}
+              className="w-full bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white py-4 rounded-lg font-medium text-lg transition">
+              {loading ? '⏳ Joining...' : '🚀 Accept Job'}
+            </button>
+          </div>
+
+          {!connected && (
+            <div className="mt-6 text-center">
+              <p className="text-gray-500 text-sm mb-3">Connect your wallet to continue</p>
+              <WalletMultiButton />
+            </div>
+          )}
+        </div>
+
+        <div className="text-center mt-8">
+          <Link href="/browse" className="text-gray-400 hover:text-amber-400 text-sm transition">or browse available jobs →</Link>
+        </div>
+      </main>
     </div>
+  );
+}
+
+export default function JoinJobPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><p className="text-gray-400">Loading...</p></div>}>
+      <JoinJobContent />
+    </Suspense>
   );
 }
