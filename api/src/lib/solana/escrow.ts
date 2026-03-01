@@ -1,5 +1,5 @@
 /**
- * StakeGuard TypeScript SDK
+ * Blink TypeScript SDK
  * Uses @coral-xyz/anchor Program client for type-safe, IDL-driven instruction calls.
  */
 import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';

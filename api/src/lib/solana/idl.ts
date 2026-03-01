@@ -1,7 +1,7 @@
 /**
- * IDL for StakeGuard Anchor program.
- * Generated manually from contracts/stakeguard.rs — replace with the
- * output of `anchor build` (target/idl/stakeguard.json) once the
+ * IDL for Blink Anchor program.
+ * Generated manually from contracts/blink.rs — replace with the
+ * output of `anchor build` (target/idl/blink.json) once the
  * program is compiled.
  *
  * Instruction discriminators = sha256("global:<snake_case_fn_name>")[0..8]
@@ -10,10 +10,10 @@
 export const IDL = {
   address: 'Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ',
   metadata: {
-    name: 'stakeguard',
+    name: 'blink',
     version: '0.1.0',
     spec: '0.1.0',
-    description: 'StakeGuard trustless escrow platform',
+    description: 'Blink trustless escrow platform',
   },
 
   // ─── Instructions ───────────────────────────────────────────────────────────

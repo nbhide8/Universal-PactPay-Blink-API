@@ -6,7 +6,7 @@
  * must prove they own the wallet address they claim to be using.
  *
  * HOW IT WORKS:
- *   1. Caller signs a message: "stakeguard:<action>:<roomId>:<timestamp>"
+ *   1. Caller signs a message: "blink:<action>:<roomId>:<timestamp>"
  *      using their Solana private key (ed25519).
  *   2. They send { walletAddress, signature, message } to the API.
  *   3. API verifies the ed25519 signature matches the public key.
@@ -14,7 +14,7 @@
  *
  * TERMINAL USAGE (with solana-keygen keypair):
  *   # Generate the message
- *   MSG="stakeguard:stake:room-abc-123:$(date +%s)"
+ *   MSG="blink:stake:room-abc-123:$(date +%s)"
  *   # Sign with a Node.js one-liner (or the provided helper script)
  *   SIG=$(node -e "
  *     const nacl = require('tweetnacl');
@@ -48,8 +48,8 @@ async function getNacl() {
 /** Maximum age for a signed message (5 minutes) */
 const MAX_MESSAGE_AGE_MS = 5 * 60 * 1000;
 
-/** Expected message format: "stakeguard:<action>:<roomId>:<timestamp>" */
-const MESSAGE_PATTERN = /^stakeguard:(\w+):([^:]+):(\d+)$/;
+/** Expected message format: "blink:<action>:<roomId>:<timestamp>" */
+const MESSAGE_PATTERN = /^blink:(\w+):([^:]+):(\d+)$/;
 
 export interface VerifySignatureParams {
   walletAddress: string;
@@ -78,7 +78,7 @@ export async function verifyWalletSignature(
   if (!match) {
     return {
       valid: false,
-      error: 'Invalid message format. Expected: stakeguard:<action>:<roomId>:<timestamp>',
+      error: 'Invalid message format. Expected: blink:<action>:<roomId>:<timestamp>',
     };
   }
 

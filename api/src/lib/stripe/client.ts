@@ -32,7 +32,7 @@ export function getStripe(): Stripe {
     apiVersion: '2025-01-27.acacia' as any,
     typescript: true,
     appInfo: {
-      name: 'StakeGuard Hybrid Escrow',
+      name: 'Blink Hybrid Escrow',
       version: '2.0.0',
     },
   });

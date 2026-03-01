@@ -18,7 +18,7 @@ export default function HomePage() {
           <div className="flex items-center gap-2">
             <span className="text-2xl">💼</span>
             <span className="text-xl font-bold bg-gradient-to-r from-amber-400 to-orange-400 bg-clip-text text-transparent">
-              StakeWork
+              PackedPay
             </span>
           </div>
           <div className="hidden sm:flex items-center gap-4 text-sm">
@@ -41,7 +41,7 @@ export default function HomePage() {
       {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
         <div className="inline-block px-4 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 text-sm font-medium mb-6">
-          Powered by the StakeGuard API
+          Powered by the Blink API
         </div>
         <h1 className="text-5xl md:text-7xl font-extrabold mb-4 bg-gradient-to-br from-amber-400 via-orange-400 to-red-400 bg-clip-text text-transparent">
           Jobs &amp; Rewards Marketplace
@@ -138,16 +138,16 @@ export default function HomePage() {
           </ul>
         </div>
 
-        {/* Built with StakeGuard API */}
+        {/* Built with Blink API */}
         <div className="mt-16 max-w-4xl w-full">
           <div className="flex items-center gap-3 mb-4">
             <span className="text-2xl">🛡️</span>
-            <h2 className="text-2xl font-bold text-gray-300">Powered by the StakeGuard API</h2>
+            <h2 className="text-2xl font-bold text-gray-300">Powered by the Blink API</h2>
           </div>
           <p className="text-gray-400 mb-6">
             This marketplace is powered by the{' '}
             <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 underline">
-              StakeGuard API
+              Blink API
             </a>
             {' '}— a standalone REST API deployed independently on Railway.
             <strong className="text-gray-200"> Every escrow is backed by the Solana blockchain.</strong>
@@ -212,19 +212,19 @@ export default function HomePage() {
           <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
             <p className="text-sm text-gray-500 mb-3">Create an escrow — crypto or non-crypto, same API:</p>
             <pre className="text-sm text-green-400 overflow-x-auto"><code>{`# Direct mode — crypto user with Solana wallet
-curl -X POST https://api.stakeguard.app/api/v1/rooms \\
+curl -X POST https://api.blink.app/api/v1/rooms \\
   -H "X-API-Key: your-key" -H "Content-Type: application/json" \\
   -d '{"walletAddress": "7xKX...", "mode": "direct", "title": "Smart contract audit", "creatorStakeAmount": 5.0, "joinerStakeAmount": 2.0, "terms": {...}}'
 # → Returns unsigned Solana transaction to sign
 
 # Custodial mode — non-crypto user pays with Stripe
-curl -X POST https://api.stakeguard.app/api/v1/rooms \\
+curl -X POST https://api.blink.app/api/v1/rooms \\
   -H "X-API-Key: your-key" -H "Content-Type: application/json" \\
   -d '{"walletAddress": "user@email.com", "mode": "custodial", "paymentRail": "stripe", "title": "Freelance Design", "creatorStakeAmount": 500, "joinerStakeAmount": 250, "terms": {...}}'
 # → Platform wallet creates on-chain escrow, returns Stripe PaymentIntent
 
 # Custodial mode — company credits (no external payment rail)
-curl -X POST https://api.stakeguard.app/api/v1/rooms \\
+curl -X POST https://api.blink.app/api/v1/rooms \\
   -H "X-API-Key: your-key" -H "Content-Type: application/json" \\
   -d '{"walletAddress": "user-42", "mode": "custodial", "paymentRail": "credits", "title": "Team Challenge", "creatorStakeAmount": 100, "joinerStakeAmount": 100, "terms": {...}}'
 # → Platform wallet creates on-chain escrow instantly, no user action needed`}</code></pre>
@@ -248,7 +248,7 @@ curl -X POST https://api.stakeguard.app/api/v1/rooms \\
           <span>•</span>
           <span>Solana Devnet</span>
           <span>•</span>
-          <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300">StakeGuard API</a>
+          <a href={API_DOCS_URL} target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300">Blink API</a>
           <span>•</span>
           <Link href="/browse" className="text-amber-400 hover:text-amber-300">Browse Jobs</Link>
         </div>

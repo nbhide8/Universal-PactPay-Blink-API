@@ -3,7 +3,7 @@
  * Custodial Solana Operations — Platform Wallet
  *
  * The platform wallet signs and submits Solana transactions on behalf
- * of non-crypto users. This is what makes StakeGuard accessible to
+ * of non-crypto users. This is what makes Blink accessible to
  * users who don't have a Solana wallet.
  *
  * EVERY escrow still lives on the Solana blockchain — the platform

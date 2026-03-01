@@ -4,7 +4,7 @@
  *
  * This is the BRIDGE between blockchain consensus and fiat actions.
  *
- * The listener watches the StakeGuard program for events:
+ * The listener watches the Blink program for events:
  *   - RoomResolved  → trigger Stripe capture + transfer
  *   - RoomSlashed   → trigger Stripe capture as penalty
  *   - RoomCancelled → trigger Stripe refund
@@ -101,7 +101,7 @@ function getEventParser(): EventParser {
 
 /**
  * Parse events from a confirmed transaction's logs.
- * Returns an array of decoded events from the StakeGuard program.
+ * Returns an array of decoded events from the Blink program.
  */
 export function parseEventsFromLogs(
   logs: string[],
@@ -147,7 +147,7 @@ let _pollInterval: ReturnType<typeof setInterval> | null = null;
 let _handlers: EventHandler[] = [];
 
 /**
- * Fetch recent transactions for the StakeGuard program and parse events.
+ * Fetch recent transactions for the Blink program and parse events.
  * This is called on each poll interval.
  */
 export async function pollForEvents(): Promise<ChainEvent[]> {

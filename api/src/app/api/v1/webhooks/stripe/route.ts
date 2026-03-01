@@ -17,7 +17,7 @@
  *
  * SECURITY:
  *   - Verifies webhook signature using STRIPE_WEBHOOK_SECRET
- *   - Only processes events with StakeGuard metadata
+ *   - Only processes events with Blink metadata
  *   - Idempotent: safe to receive the same event multiple times
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -50,12 +50,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 });
   }
 
-  // Only process StakeGuard-related events
+  // Only process Blink-related events
   const pi = (event.data.object as any);
-  const roomId = pi?.metadata?.stakeguard_room_id;
+  const roomId = pi?.metadata?.blink_room_id;
 
   if (!roomId) {
-    // Not a StakeGuard payment — acknowledge and ignore
+    // Not a Blink payment — acknowledge and ignore
     return NextResponse.json({ received: true });
   }
 
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
 
         // AUTO-STAKE: Platform wallet stakes SOL on-chain for this user
         if (isCustodialAvailable()) {
-          const userId = pi.metadata.stakeguard_user_id;
-          const role = pi.metadata.stakeguard_role as 'creator' | 'joiner';
+          const userId = pi.metadata.blink_user_id;
+          const role = pi.metadata.blink_role as 'creator' | 'joiner';
 
           const room = await getRoomPublic(roomId);
           if (room) {

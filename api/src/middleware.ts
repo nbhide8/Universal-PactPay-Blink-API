@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * CORS + API Key middleware for the StakeGuard API.
+ * CORS + API Key middleware for the Blink API.
  *
  * CORS: Allows any origin to call /api/v1/* endpoints.
- * API Key: When STAKEGUARD_API_KEY is set, all non-docs endpoints
+ * API Key: When BLINK_API_KEY is set, all non-docs endpoints
  *          require an X-API-Key header. This lets external companies
  *          authenticate with the API.
  *
  * To enable API key auth, set:
- *   STAKEGUARD_API_KEY=your-secret-key-here
+ *   BLINK_API_KEY=your-secret-key-here
  *
  * Clients include the key as:
- *   curl -H "X-API-Key: your-secret-key-here" https://api.stakeguard.app/api/v1/rooms
+ *   curl -H "X-API-Key: your-secret-key-here" https://api.blink.app/api/v1/rooms
  */
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,7 +37,7 @@ export function middleware(request: NextRequest) {
   }
 
   // API Key authentication (when configured)
-  const expectedKey = process.env.STAKEGUARD_API_KEY;
+  const expectedKey = process.env.BLINK_API_KEY;
   if (expectedKey) {
     const isPublicPath = PUBLIC_PATHS.some((p) =>
       request.nextUrl.pathname.startsWith(p)

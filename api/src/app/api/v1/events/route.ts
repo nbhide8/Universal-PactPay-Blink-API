@@ -5,7 +5,7 @@
  * GET  → Listener status + recent events
  * POST → Start/stop the listener, or manually trigger a poll
  *
- * The event listener watches the Solana blockchain for StakeGuard
+ * The event listener watches the Solana blockchain for Blink
  * program events and dispatches them to the Stripe action handler.
  *
  * In production, the listener starts automatically on boot.
@@ -32,7 +32,7 @@ export async function GET() {
     listener: {
       ...stats,
       dispatcherRegistered: _dispatcherRegistered,
-      description: 'Watches Solana for StakeGuard events → triggers Stripe actions',
+      description: 'Watches Solana for Blink events → triggers Stripe actions',
     },
   });
 }

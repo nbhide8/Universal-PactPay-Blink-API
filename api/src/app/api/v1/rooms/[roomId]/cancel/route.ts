@@ -40,7 +40,7 @@ export async function POST(
     }
     if (!sigResult && isSignatureRequired()) {
       return NextResponse.json(
-        { success: false, error: 'Signature required. Sign message: stakeguard:cancel:<roomId>:<timestamp>' },
+        { success: false, error: 'Signature required. Sign message: blink:cancel:<roomId>:<timestamp>' },
         { status: 401 }
       );
     }

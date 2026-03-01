@@ -76,7 +76,7 @@ export default function BrowseJobsPage() {
           <div className="flex items-center gap-4">
             <Link href="/" className="flex items-center gap-2">
               <span className="text-xl">💼</span>
-              <span className="text-xl font-bold text-amber-400 hover:text-amber-300">StakeWork</span>
+              <span className="text-xl font-bold text-amber-400 hover:text-amber-300">PackedPay</span>
             </Link>
             <span className="text-gray-500">|</span>
             <h1 className="text-lg font-semibold">Job Board</h1>

@@ -1,12 +1,12 @@
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * StakeGuard API Client
+ * Blink API Client
  *
  * The ONLY way the demo app talks to the backend. Every page uses this client.
  * No Supabase, no direct database access, no Solana SDK — just the API.
  *
  *   NEXT_PUBLIC_API_URL=http://localhost:3001   (local dev)
- *   NEXT_PUBLIC_API_URL=https://stakeguard-api.up.railway.app  (prod)
+ *   NEXT_PUBLIC_API_URL=https://blink-api.up.railway.app  (prod)
  *
  * ─────────────────────────────────────────────────────────────────────────────
  */
@@ -285,10 +285,10 @@ export async function submitTransaction(data: {
 // ─── Helper: Sign message with Solana wallet ────────────────────────────────
 
 /**
- * Build a stakeguard auth message for a given action.
+ * Build a blink auth message for a given action.
  * Returns the message string that needs to be signed.
  */
 export function buildAuthMessage(action: string, roomId: string): string {
   const timestamp = Math.floor(Date.now() / 1000);
-  return `stakeguard:${action}:${roomId}:${timestamp}`;
+  return `blink:${action}:${roomId}:${timestamp}`;
 }
