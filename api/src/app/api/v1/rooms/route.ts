@@ -3,6 +3,10 @@ import { getAllPublicRooms, createRoom } from '@/lib/database';
 import { getEngine, isValidMode } from '@/lib/providers';
 import { computeTermsHash } from '@/lib/crypto/termsHash';
 
+// Never cache — always query the database fresh
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * GET /api/v1/rooms — Browse all public escrow rooms
@@ -31,8 +35,8 @@ export async function GET(request: NextRequest) {
       search: sp.get('search') || undefined,
       sortBy: (sp.get('sortBy') as any) || undefined,
       sortOrder: (sp.get('sortOrder') as any) || undefined,
-      creatorId: sp.get('creatorId') || undefined,
-      joinerId: sp.get('joinerId') || undefined,
+      creatorWallet: sp.get('creatorId') || undefined,
+      joinerWallet: sp.get('joinerId') || undefined,
     });
 
     return NextResponse.json({
@@ -156,7 +160,7 @@ export async function POST(request: NextRequest) {
     });
 
     // 2. Create room in database
-    const room = await createRoom(walletAddress, walletAddress, {
+    const room = await createRoom(walletAddress, {
       title,
       description,
       rewardAmount,
@@ -189,6 +193,7 @@ export async function POST(request: NextRequest) {
       creatorId: walletAddress,
       creatorStakeAmount,
       joinerStakeAmount,
+      rewardAmount,
       currency: body.currency,
       paymentRail: body.paymentRail,
     });

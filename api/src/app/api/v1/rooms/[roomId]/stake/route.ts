@@ -3,6 +3,9 @@ import { getEngine } from '@/lib/providers';
 import { getRoomPublic } from '@/lib/database';
 import { verifyRequestSignature, isSignatureRequired } from '@/lib/auth/verify';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * POST /api/v1/rooms/[roomId]/stake — Fund the escrow lockbox
@@ -53,7 +56,7 @@ export async function POST(
     }
     if (!sigResult && isSignatureRequired()) {
       return NextResponse.json(
-        { success: false, error: 'Signature required. Sign message: blink:stake:<roomId>:<timestamp>' },
+        { success: false, error: 'Signature required. Sign message: stakeguard:stake:<roomId>:<timestamp>' },
         { status: 401 }
       );
     }
@@ -67,8 +70,24 @@ export async function POST(
       );
     }
 
+    // Prevent double staking
+    if (isCreator && room.creator_funded) {
+      return NextResponse.json(
+        { success: false, error: 'Creator has already staked' },
+        { status: 400 }
+      );
+    }
+    if (!isCreator && room.joiner_funded) {
+      return NextResponse.json(
+        { success: false, error: 'Joiner has already staked' },
+        { status: 400 }
+      );
+    }
+
+    // Creator stakes collateral + reward (reward is locked in escrow for the worker)
+    // Joiner stakes their collateral only
     const amount = isCreator
-      ? room.creator_stake_amount
+      ? room.creator_stake_amount + (room.reward_amount || 0)
       : room.joiner_stake_amount;
 
     // Use walletAddress as participantId if not provided

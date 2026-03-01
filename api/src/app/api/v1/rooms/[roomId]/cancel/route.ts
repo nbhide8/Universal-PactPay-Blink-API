@@ -3,6 +3,9 @@ import { getEngine } from '@/lib/providers';
 import { getRoomFull } from '@/lib/database';
 import { verifyRequestSignature, isSignatureRequired } from '@/lib/auth/verify';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * POST /api/v1/rooms/[roomId]/cancel — Cancel the escrow
@@ -40,7 +43,7 @@ export async function POST(
     }
     if (!sigResult && isSignatureRequired()) {
       return NextResponse.json(
-        { success: false, error: 'Signature required. Sign message: blink:cancel:<roomId>:<timestamp>' },
+        { success: false, error: 'Signature required. Sign message: stakeguard:cancel:<roomId>:<timestamp>' },
         { status: 401 }
       );
     }
@@ -53,14 +56,12 @@ export async function POST(
       );
     }
 
-    const joiner = room.participants?.find((p) => p.role === 'joiner');
-
-    // Delegate to escrow engine
+    // Delegate to escrow engine — wallet addresses are participant IDs
     const engine = getEngine((room as any).mode || (room as any).provider);
     const lockbox = await engine.cancelLockbox({
       roomId: params.roomId,
       callerAddress: walletAddress,
-      joinerAddress: joiner?.wallet_address,
+      joinerAddress: room.joiner_wallet || undefined,
     });
 
     return NextResponse.json({

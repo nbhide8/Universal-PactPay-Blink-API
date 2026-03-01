@@ -93,30 +93,33 @@ async function handlePostConfirmation(
   switch (action) {
     case 'initialize_room': {
       // Room was already created in DB during POST /api/v1/rooms
-      // Just update the escrow status
+      // Mark escrow as initialized in metadata
       const { supabase } = await import('@/lib/supabase');
-      await supabase
+      const { data: initRoom } = await supabase
         .from('rooms')
-        .update({
-          escrow_initialized: true,
-          resolution_tx_signature: txSignature,
-        })
-        .eq('id', roomId);
+        .select('metadata')
+        .eq('id', roomId)
+        .single();
+      if (initRoom) {
+        const meta = (initRoom.metadata || {}) as Record<string, any>;
+        meta.escrow_initialized = true;
+        meta.init_tx_sig = txSignature;
+        await supabase
+          .from('rooms')
+          .update({ metadata: meta })
+          .eq('id', roomId);
+      }
       break;
     }
     case 'stake': {
       const room = await getRoomPublic(roomId);
       if (room) {
         const isCreator = metadata?.isCreator ?? false;
-        const amount = isCreator ? room.creator_stake_amount : room.joiner_stake_amount;
-        await recordStake(
-          roomId,
-          walletAddress,
-          metadata?.participantId || walletAddress,
-          amount,
-          txSignature,
-          walletAddress
-        );
+        // Creator stakes collateral + reward; joiner stakes just their collateral
+        const amount = isCreator
+          ? room.creator_stake_amount + (room.reward_amount || 0)
+          : room.joiner_stake_amount;
+        await recordStake(roomId, walletAddress, amount, txSignature);
       }
       break;
     }
@@ -129,17 +132,52 @@ async function handlePostConfirmation(
         slash: 'slashed',
         cancel: 'cancelled',
       };
+      // Update status + store terminal metadata
+      const { data: termRoom } = await supabase
+        .from('rooms')
+        .select('metadata')
+        .eq('id', roomId)
+        .single();
+      const meta = ((termRoom?.metadata || {}) as Record<string, any>);
+      meta.resolution_tx_sig = txSignature;
+      if (action === 'resolve') meta.resolved_at = new Date().toISOString();
+      if (action === 'slash') {
+        meta.slashed_at = new Date().toISOString();
+        meta.slashed_by = walletAddress;
+      }
       await supabase
         .from('rooms')
         .update({
           status: statusMap[action],
-          resolution_tx_signature: txSignature,
-          ...(action === 'resolve' ? { resolved_at: new Date().toISOString() } : {}),
-          ...(action === 'slash'
-            ? { slashed_at: new Date().toISOString(), slashed_by: walletAddress }
-            : {}),
+          metadata: meta,
         })
         .eq('id', roomId);
+      break;
+    }
+    case 'resolveapprove': {
+      // On-chain approveResolve confirmed — record in DB via system message
+      const { supabase: sb } = await import('@/lib/supabase');
+      const { getRoomFull: getRoomFullForApprove } = await import('@/lib/database');
+      const room = await getRoomFullForApprove(roomId);
+      if (room) {
+        const isCreator = room.creator_wallet === walletAddress;
+        const isJoiner = room.joiner_wallet === walletAddress;
+        const creatorApproved = isCreator ? true : !!room.creator_resolve_approved;
+        const joinerApproved = isJoiner ? true : !!room.joiner_resolve_approved;
+        const bothApproved = creatorApproved && joinerApproved;
+        await sb.from('messages').insert({
+          room_id: roomId,
+          sender_wallet: walletAddress,
+          type: 'system',
+          content: bothApproved
+            ? 'Both parties approved resolution on-chain! Creator must now sign the resolve transaction.'
+            : `${isCreator ? 'Creator' : 'Joiner'} approved resolution on-chain. Waiting for the other party.`,
+          metadata: {
+            action: bothApproved ? 'both_approved' : 'resolve_approved',
+            approve_tx_sig: txSignature,
+          },
+        });
+      }
       break;
     }
   }

@@ -19,7 +19,12 @@ function apiUrl(path: string): string {
 }
 
 async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const url = apiUrl(path);
+  // Append cache-bust timestamp to GET requests to prevent stale responses
+  const separator = path.includes('?') ? '&' : '?';
+  const bustPath = (!init?.method || init.method === 'GET')
+    ? `${path}${separator}_t=${Date.now()}`
+    : path;
+  const url = apiUrl(bustPath);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init?.headers as Record<string, string>),
@@ -28,23 +33,19 @@ async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   if (apiKey) {
     headers['X-API-Key'] = apiKey;
   }
-  return fetch(url, { ...init, headers });
+  return fetch(url, { ...init, headers, cache: 'no-store' });
 }
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type RoomStatus =
   | 'pending'
-  | 'awaiting_approval'
-  | 'terms_negotiation'
-  | 'approved'
-  | 'funding'
+  | 'open'
+  | 'awaiting_joiner_stake'
   | 'active'
   | 'resolved'
   | 'slashed'
-  | 'cancelled'
-  | 'expired'
-  | 'disputed';
+  | 'cancelled';
 
 export type ConditionType =
   | 'task_completion'
@@ -68,25 +69,22 @@ export interface Room {
   title: string;
   description: string | null;
   status: RoomStatus;
-  creator_id: string;
-  joiner_id: string | null;
   reward_amount: number;
   creator_stake_amount: number;
   joiner_stake_amount: number;
   join_code: string;
   tags: string[];
-  contract_deadline: string | null;
   is_public: boolean;
   created_at: string;
-  on_chain_address: string | null;
   creator_wallet: string;
   joiner_wallet: string | null;
   terms: any;
-  conditions: any[];
-  stakes: any[];
-  creator_approved_terms: boolean;
-  joiner_approved_terms: boolean;
-  participants?: any[];
+  metadata: any;
+  creator_funded?: boolean;
+  joiner_funded?: boolean;
+  interested_wallets?: string[];
+  creator_resolve_approved?: boolean;
+  joiner_resolve_approved?: boolean;
 }
 
 export interface LockboxResult {
@@ -180,6 +178,32 @@ export async function joinRoom(data: {
 // Each returns a lockbox with action.payload = unsigned base64 Solana transaction
 // The demo app signs it with the user's wallet and submits via submitTransaction().
 
+export async function markInterest(
+  roomId: string,
+  data: { walletAddress: string }
+): Promise<{ room: Room }> {
+  const res = await apiFetch(`/api/v1/rooms/${roomId}/interest`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Failed to mark interest');
+  return { room: json.room };
+}
+
+export async function acceptJoiner(
+  roomId: string,
+  data: { walletAddress: string; joinerWallet: string }
+): Promise<{ room: Room }> {
+  const res = await apiFetch(`/api/v1/rooms/${roomId}/accept`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Failed to accept joiner');
+  return { room: json.room };
+}
+
 export async function stakeRoom(
   roomId: string,
   data: {
@@ -230,6 +254,32 @@ export async function resolveRoom(
   const json = await res.json();
   if (!res.ok || !json.success) throw new Error(json.error || 'Failed to resolve');
   return json;
+}
+
+export async function resolveApproveRoom(
+  roomId: string,
+  data: { walletAddress: string }
+): Promise<{ success: boolean; lockbox: LockboxResult; creatorApproved: boolean; joinerApproved: boolean; bothApproved: boolean; resolved: boolean }> {
+  const res = await apiFetch(`/api/v1/rooms/${roomId}/resolve-approve`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Failed to approve resolution');
+  return json;
+}
+
+export async function joinRoomById(
+  roomId: string,
+  data: { walletAddress: string; joinCode: string }
+): Promise<{ room: Room }> {
+  const res = await apiFetch(`/api/v1/rooms/${roomId}/join`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+  const json = await res.json();
+  if (!res.ok || !json.success) throw new Error(json.error || 'Failed to join room');
+  return { room: json.room };
 }
 
 export async function slashRoom(

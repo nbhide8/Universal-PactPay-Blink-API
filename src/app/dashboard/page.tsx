@@ -7,9 +7,9 @@ import Link from 'next/link';
 import { getRooms, type Room } from '@/lib/api';
 
 const STATUS_BADGE: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Open', color: 'bg-green-500/20 text-green-400' },
-  awaiting_approval: { label: 'Review', color: 'bg-blue-500/20 text-blue-400' },
-  funding: { label: 'Funding', color: 'bg-purple-500/20 text-purple-400' },
+  pending: { label: 'Setting Up', color: 'bg-yellow-500/20 text-yellow-400' },
+  open: { label: 'Hiring', color: 'bg-green-500/20 text-green-400' },
+  awaiting_joiner_stake: { label: 'Worker Staking', color: 'bg-purple-500/20 text-purple-400' },
   active: { label: 'Active', color: 'bg-amber-500/20 text-amber-400' },
   resolved: { label: 'Done', color: 'bg-emerald-500/20 text-emerald-400' },
   slashed: { label: 'Slashed', color: 'bg-red-500/20 text-red-400' },
@@ -145,7 +145,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-4 text-sm text-gray-500">
                         <span>Bounty: <span className="text-amber-400">{room.creator_stake_amount} SOL</span></span>
                         <span>Stake: <span className="text-blue-400">{room.joiner_stake_amount} SOL</span></span>
-                        {room.joiner_id && <span>Worker: <span className="text-gray-400 font-mono">{room.joiner_id.slice(0, 4)}...{room.joiner_id.slice(-4)}</span></span>}
+                        {room.joiner_wallet && <span>Worker: <span className="text-gray-400 font-mono">{room.joiner_wallet.slice(0, 4)}...{room.joiner_wallet.slice(-4)}</span></span>}
                       </div>
                     </div>
                     <span className="text-gray-600 group-hover:text-gray-400 transition">→</span>

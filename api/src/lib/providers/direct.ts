@@ -35,10 +35,12 @@ export class DirectEngine implements EscrowEngine {
   readonly mode = 'direct' as const;
 
   async createLockbox(params: CreateLockboxParams): Promise<LockboxResult> {
+    // On-chain creator stake includes the reward — creator deposits collateral + bounty
+    const onChainCreatorStake = params.creatorStakeAmount + (params.rewardAmount || 0);
     const txResult = await buildInitializeRoomTx({
       walletAddress: params.creatorId,
       roomId: params.roomId,
-      creatorStakeAmount: params.creatorStakeAmount,
+      creatorStakeAmount: onChainCreatorStake,
       joinerStakeAmount: params.joinerStakeAmount,
     });
 
@@ -113,6 +115,7 @@ export class DirectEngine implements EscrowEngine {
       joinerParticipantId: params.joinerParticipantId,
       creatorWallet: params.creatorAddress,
       joinerWallet: params.joinerAddress,
+      rewardAmount: params.rewardAmount || 0,
     });
 
     return {

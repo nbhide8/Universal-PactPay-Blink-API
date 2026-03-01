@@ -1,21 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { joinRoom } from '@/lib/database';
+import { markInterest, getRoomPublic } from '@/lib/database';
+
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * POST /api/v1/rooms/[roomId]/join — Join a room via join code
+ * POST /api/v1/rooms/[roomId]/join — Mark interest in a room
  *
- * This is a database-only operation (no on-chain tx needed to join).
- * The joiner will need to stake separately after reviewing terms.
- *
- * Body:
- *   {
- *     walletAddress: string  — Joiner's Solana wallet
- *     joinCode: string       — 6-character room code
- *   }
- *
- * Returns:
- *   { success: true, room: Room }
+ * Body: { walletAddress: string }
+ * Returns: { success: true }
  * ─────────────────────────────────────────────────────────────────────────────
  */
 export async function POST(
@@ -24,16 +18,17 @@ export async function POST(
 ) {
   try {
     const body = await request.json();
-    const { walletAddress, joinCode } = body;
+    const { walletAddress } = body;
 
-    if (!walletAddress || !joinCode) {
+    if (!walletAddress) {
       return NextResponse.json(
-        { success: false, error: 'walletAddress and joinCode are required' },
+        { success: false, error: 'walletAddress is required' },
         { status: 400 }
       );
     }
 
-    const room = await joinRoom(walletAddress, walletAddress, joinCode);
+    await markInterest(params.roomId, walletAddress);
+    const room = await getRoomPublic(params.roomId);
 
     return NextResponse.json({
       success: true,

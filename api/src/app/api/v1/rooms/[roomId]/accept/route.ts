@@ -1,42 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { markInterest, getRoomByJoinCode } from '@/lib/database';
+import { acceptJoiner, getRoomFull } from '@/lib/database';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 /**
  * ─────────────────────────────────────────────────────────────────────────────
- * POST /api/v1/rooms/join — Mark interest by join code (no roomId needed)
+ * POST /api/v1/rooms/[roomId]/accept — Creator accepts an interested joiner
  *
- * Looks up the room by join code, then marks interest.
+ * Only the room creator can call this. The room must be 'open'.
+ * Sets joiner_wallet, transitions status to 'awaiting_joiner_stake'.
  *
- * Body: { walletAddress: string, joinCode: string }
- * Returns: { success: true, room: Room }
+ * Body: { walletAddress: string, joinerWallet: string }
+ * Returns: { success: true, room: RoomView }
  * ─────────────────────────────────────────────────────────────────────────────
  */
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { roomId: string } }
+) {
   try {
     const body = await request.json();
-    const { walletAddress, userId, joinCode } = body;
+    const { walletAddress, joinerWallet } = body;
 
-    const wallet = walletAddress || userId;
-    if (!wallet || !joinCode) {
+    if (!walletAddress || !joinerWallet) {
       return NextResponse.json(
-        { success: false, error: 'walletAddress and joinCode are required' },
+        { success: false, error: 'walletAddress (creator) and joinerWallet are required' },
         { status: 400 }
       );
     }
 
-    // Find room by join code
-    const room = await getRoomByJoinCode(joinCode);
-    if (!room) {
-      return NextResponse.json(
-        { success: false, error: 'Room not found for that join code' },
-        { status: 404 }
-      );
-    }
-
-    await markInterest(room.id, wallet);
+    await acceptJoiner(params.roomId, walletAddress, joinerWallet);
+    const room = await getRoomFull(params.roomId);
 
     return NextResponse.json({
       success: true,

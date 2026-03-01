@@ -1,15 +1,17 @@
 'use client';
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { Transaction, Connection } from '@solana/web3.js';
+import { Transaction } from '@solana/web3.js';
 import Link from 'next/link';
 import {
   getRoom,
   stakeRoom,
-  approveRoom,
+  markInterest,
+  acceptJoiner,
+  resolveApproveRoom,
   resolveRoom,
   slashRoom,
   cancelRoom,
@@ -20,11 +22,11 @@ import {
 } from '@/lib/api';
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string }> = {
-  pending: { label: 'Waiting for Worker', color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: '⏳' },
-  awaiting_approval: { label: 'Awaiting Approval', color: 'bg-blue-500/20 text-blue-400 border-blue-500/30', icon: '📋' },
-  funding: { label: 'Staking Phase', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: '💰' },
-  active: { label: 'Work in Progress', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: '🔨' },
-  resolved: { label: 'Resolved — Complete', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: '✅' },
+  pending: { label: 'Setting Up', color: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30', icon: '⏳' },
+  open: { label: 'Open — Hiring', color: 'bg-green-500/20 text-green-400 border-green-500/30', icon: '📢' },
+  awaiting_joiner_stake: { label: 'Worker Staking', color: 'bg-purple-500/20 text-purple-400 border-purple-500/30', icon: '💰' },
+  active: { label: 'Both Staked — Active', color: 'bg-amber-500/20 text-amber-400 border-amber-500/30', icon: '🔨' },
+  resolved: { label: 'Resolved', color: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30', icon: '✅' },
   slashed: { label: 'Slashed', color: 'bg-red-500/20 text-red-400 border-red-500/30', icon: '⚠️' },
   cancelled: { label: 'Cancelled', color: 'bg-gray-500/20 text-gray-400 border-gray-500/30', icon: '🚫' },
 };
@@ -32,6 +34,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: string
 function RoomDetailContent() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const roomId = params.roomId as string;
   const { publicKey, signTransaction, signMessage, connected } = useWallet();
 
@@ -42,8 +45,8 @@ function RoomDetailContent() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [txSignature, setTxSignature] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Show creation/join banners
   const justCreated = searchParams.get('created') === 'true';
   const justJoined = searchParams.get('joined') === 'true';
   const joinCode = searchParams.get('joinCode');
@@ -57,54 +60,121 @@ function RoomDetailContent() {
       setError(err.message);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [roomId]);
 
+  const doRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchRoom();
+  }, [fetchRoom]);
+
   useEffect(() => { fetchRoom(); }, [fetchRoom]);
 
-  // Auto-refresh every 10s  
+  // Auto-refresh every 5s
   useEffect(() => {
-    const interval = setInterval(fetchRoom, 10000);
+    const interval = setInterval(fetchRoom, 5000);
     return () => clearInterval(interval);
   }, [fetchRoom]);
 
-  const wallet = publicKey?.toBase58();
-  const isCreator = room?.creator_id === wallet;
-  const isJoiner = room?.joiner_id === wallet;
-  const isParticipant = isCreator || isJoiner;
-
-  /**
-   * Handle a lockbox result from the API:
-   * - Custodial mode: action handled server-side, just refresh
-   * - Direct mode: sign the unsigned transaction and submit
-   */
-  async function handleLockbox(lockbox: LockboxResult, actionName: string, metadata?: Record<string, any>) {
-    if (lockbox.mode === 'custodial') {
-      setSuccess(`${actionName} completed (custodial mode)`);
-      await fetchRoom();
-      return;
+  // After joining, re-fetch aggressively
+  useEffect(() => {
+    if (justJoined) {
+      const t1 = setTimeout(fetchRoom, 500);
+      const t2 = setTimeout(fetchRoom, 1500);
+      const t3 = setTimeout(fetchRoom, 3000);
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
     }
+  }, [justJoined, fetchRoom]);
 
-    // Direct mode — we need to sign the transaction
+  // === Redirect away from resolved/cancelled/slashed rooms ===
+  useEffect(() => {
+    if (room && ['resolved', 'cancelled', 'slashed'].includes(room.status)) {
+      // Give user time to see the tx link before redirecting
+      const timer = setTimeout(() => {
+        router.push('/browse');
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, [room, router]);
+
+  const wallet = publicKey?.toBase58();
+
+  // Participant detection
+  const isCreator: boolean = !!wallet && room?.creator_wallet === wallet;
+  const isJoiner: boolean = !!wallet && room?.joiner_wallet === wallet;
+  const isParticipant = isCreator || isJoiner;
+  const hasMarkedInterest = !!wallet && (room?.interested_wallets || []).includes(wallet);
+
+  // Derived state
+  const myFunded = isCreator ? !!room?.creator_funded : isJoiner ? !!room?.joiner_funded : false;
+  const creatorFunded = !!room?.creator_funded;
+  const joinerFunded = !!room?.joiner_funded;
+  const bothStaked = creatorFunded && joinerFunded;
+  const myResolveApproved = isCreator ? !!room?.creator_resolve_approved : !!room?.joiner_resolve_approved;
+  const otherResolveApproved = isCreator ? !!room?.joiner_resolve_approved : !!room?.creator_resolve_approved;
+  const interestedWallets = room?.interested_wallets || [];
+
+  // === Workflow step computation ===
+  // Creator: auto-staked at creation → wait for interest → accept joiner → wait for joiner stake → resolve → finalize
+  // Joiner: mark interest → wait for acceptance → stake → resolve → wait for finalization
+  type WorkflowStep = 'pending_init' | 'wait_interest' | 'accept_joiner' | 'wait_joiner_stake' | 'stake' | 'resolve' | 'finalize' | 'done' | 'mark_interest' | 'wait_acceptance';
+  let currentStep: WorkflowStep = 'done';
+
+  const bothApproved = !!room?.creator_resolve_approved && !!room?.joiner_resolve_approved;
+
+  if (room && !['resolved', 'cancelled', 'slashed'].includes(room.status)) {
+    if (isCreator) {
+      if (room.status === 'pending') {
+        currentStep = 'pending_init'; // Init+stake still in progress
+      } else if (room.status === 'open' && interestedWallets.length === 0) {
+        currentStep = 'wait_interest'; // Waiting for people to mark interest
+      } else if (room.status === 'open' && interestedWallets.length > 0) {
+        currentStep = 'accept_joiner'; // Has interested wallets, pick one
+      } else if (room.status === 'awaiting_joiner_stake') {
+        currentStep = 'wait_joiner_stake'; // Joiner needs to stake
+      } else if (room.status === 'active' && !myResolveApproved) {
+        currentStep = 'resolve'; // Both staked, approve resolution
+      } else if (room.status === 'active' && bothApproved) {
+        currentStep = 'finalize'; // Both approved, creator must sign on-chain resolve
+      } else {
+        currentStep = 'done'; // Waiting for other party
+      }
+    } else if (isJoiner) {
+      if (room.status === 'awaiting_joiner_stake' && !joinerFunded) {
+        currentStep = 'stake'; // Stake now
+      } else if (room.status === 'active' && !myResolveApproved) {
+        currentStep = 'resolve'; // Both staked, approve resolution
+      } else if (room.status === 'active' && bothApproved) {
+        currentStep = 'done'; // Waiting for creator to finalize
+      } else {
+        currentStep = 'done';
+      }
+    } else if (wallet) {
+      // Non-participant — can mark interest if room is open
+      if (room.status === 'open' && !hasMarkedInterest) {
+        currentStep = 'mark_interest';
+      } else if (hasMarkedInterest) {
+        currentStep = 'wait_acceptance';
+      }
+    }
+  }
+
+  // === Action handlers ===
+
+  async function handleLockbox(lockbox: LockboxResult, actionName: string, metadata?: Record<string, any>) {
     if (!lockbox.action.payload) {
       setSuccess(`${actionName} completed`);
       await fetchRoom();
       return;
     }
-
     if (!signTransaction) {
       throw new Error('Wallet does not support transaction signing');
     }
-
-    // Deserialize the base64 unsigned transaction
     const txBytes = Buffer.from(lockbox.action.payload, 'base64');
     const tx = Transaction.from(txBytes);
-
-    // Sign with wallet
     const signed = await signTransaction(tx);
     const signedBase64 = Buffer.from(signed.serialize()).toString('base64');
-
-    // Submit via API
     const result = await submitTransaction({
       signedTransaction: signedBase64,
       roomId,
@@ -112,9 +182,9 @@ function RoomDetailContent() {
       walletAddress: wallet,
       metadata,
     });
-
     setTxSignature(result.signature);
     setSuccess(`${actionName} confirmed! Tx: ${result.signature.slice(0, 8)}...`);
+    // Immediate refresh after transaction
     await fetchRoom();
   }
 
@@ -128,8 +198,12 @@ function RoomDetailContent() {
         await handleLockbox(result.lockbox, actionName, metadata);
       } else {
         setSuccess(`${actionName} completed`);
+        // Immediate refresh after any action
         await fetchRoom();
       }
+      // Extra refresh after a short delay to catch DB propagation
+      setTimeout(fetchRoom, 1000);
+      setTimeout(fetchRoom, 3000);
     } catch (err: any) {
       setError(err.message || `${actionName} failed`);
     } finally {
@@ -137,19 +211,14 @@ function RoomDetailContent() {
     }
   }
 
-  // Build optional signature auth for an action
   async function buildSigParams(action: string): Promise<{ signature?: string; message?: string }> {
     if (!signMessage || !publicKey) return {};
     try {
       const msg = buildAuthMessage(action, roomId);
       const encoded = new TextEncoder().encode(msg);
       const sig = await signMessage(encoded);
-      return {
-        message: msg,
-        signature: Buffer.from(sig).toString('base64'),
-      };
+      return { message: msg, signature: Buffer.from(sig).toString('base64') };
     } catch {
-      // User declined signing — still try without signature
       return {};
     }
   }
@@ -161,12 +230,21 @@ function RoomDetailContent() {
     }, { isCreator: asCreator });
   };
 
-  const doApprove = () => handleAction('Approve', async () => {
-    const sig = await buildSigParams('approve');
-    return approveRoom(roomId, { walletAddress: wallet!, ...sig });
+  const doMarkInterest = () => handleAction('MarkInterest', async () => {
+    return markInterest(roomId, { walletAddress: wallet! });
   });
 
-  const doResolve = () => handleAction('Resolve', async () => {
+  const doAcceptJoiner = (joinerWallet: string) => handleAction('AcceptJoiner', async () => {
+    return acceptJoiner(roomId, { walletAddress: wallet!, joinerWallet });
+  });
+
+  const doResolveApprove = () => handleAction('ResolveApprove', async () => {
+    return resolveApproveRoom(roomId, { walletAddress: wallet! });
+  });
+
+  // Finalize resolution on-chain: calls /resolve to get unsigned tx,
+  // signs it (creator only — includes reward transfer), submits
+  const doFinalizeResolve = () => handleAction('Resolve', async () => {
     const sig = await buildSigParams('resolve');
     return resolveRoom(roomId, { walletAddress: wallet!, ...sig });
   });
@@ -181,6 +259,7 @@ function RoomDetailContent() {
     return cancelRoom(roomId, { walletAddress: wallet!, ...sig });
   });
 
+  // === Loading ===
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -205,6 +284,51 @@ function RoomDetailContent() {
     );
   }
 
+  // === Resolved/cancelled/slashed — show goodbye screen ===
+  if (['resolved', 'cancelled', 'slashed'].includes(room.status)) {
+    const cfg = STATUS_CONFIG[room.status] || STATUS_CONFIG.resolved;
+    const resolutionTxSig = room.metadata?.resolution_tx_sig || txSignature;
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-6xl mb-4">{cfg.icon}</div>
+          <h2 className="text-2xl font-bold mb-2">{room.title}</h2>
+          <p className="text-lg text-gray-300 mb-2">{cfg.label}</p>
+          {room.status === 'resolved' && (
+            <>
+              <p className="text-emerald-400 text-sm mb-2">Contract successfully resolved! Both parties&apos; stakes have been released.</p>
+              {room.reward_amount > 0 && (
+                <p className="text-amber-400 text-sm mb-4">💰 {room.reward_amount} SOL reward transferred to the worker.</p>
+              )}
+            </>
+          )}
+          {room.status === 'slashed' && (
+            <p className="text-red-400 text-sm mb-4">Stakes were burned. Both parties lost their collateral.</p>
+          )}
+          {room.status === 'cancelled' && (
+            <p className="text-gray-400 text-sm mb-4">This job was cancelled.</p>
+          )}
+          {resolutionTxSig && (
+            <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mb-4">
+              <p className="text-gray-400 text-xs mb-2">Solana Transaction</p>
+              <a
+                href={`https://explorer.solana.com/tx/${resolutionTxSig}?cluster=devnet`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-violet-400 hover:text-violet-300 font-mono text-sm break-all underline"
+              >
+                {resolutionTxSig.slice(0, 20)}...{resolutionTxSig.slice(-8)}
+              </a>
+              <p className="text-gray-500 text-xs mt-1">View on Solana Explorer →</p>
+            </div>
+          )}
+          <p className="text-gray-500 text-xs mb-6">Redirecting to browse...</p>
+          <Link href="/browse" className="text-amber-400 hover:text-amber-300 font-medium">← Back to Jobs</Link>
+        </div>
+      </div>
+    );
+  }
+
   const statusCfg = STATUS_CONFIG[room.status] || { label: room.status, color: 'bg-gray-500/20 text-gray-400', icon: '❓' };
 
   return (
@@ -216,47 +340,23 @@ function RoomDetailContent() {
             <span className="text-gray-500">|</span>
             <Link href="/browse" className="text-gray-400 hover:text-white text-sm">← Jobs</Link>
           </div>
-          <WalletMultiButton />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={doRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 disabled:opacity-50 text-gray-300 hover:text-white px-3 py-2 rounded-lg text-sm font-medium transition"
+              title="Refresh room data"
+            >
+              <span className={refreshing ? 'animate-spin' : ''}>🔄</span>
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+            <WalletMultiButton />
+          </div>
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        {/* Banners */}
-        {justCreated && joinCode && (
-          <div className="space-y-4 mb-6">
-            {/* Step 1 — Stake prompt (most important) */}
-            <div className="bg-purple-500/10 border-2 border-purple-500/40 rounded-xl p-6">
-              <h3 className="text-lg font-bold text-purple-300 mb-2">⚠️ Action Required — Stake Your Funds</h3>
-              <p className="text-gray-300 text-sm mb-3">
-                <strong>Both parties must stake</strong> to activate the escrow. As the job creator, you must lock up
-                <span className="text-amber-400 font-bold"> {room?.creator_stake_amount} SOL</span> as a bounty/collateral.
-                This prevents either side from screwing the other — if terms aren&apos;t met, stakes get slashed.
-              </p>
-              <button
-                onClick={() => doStake(true)}
-                disabled={!!actionLoading || !connected}
-                className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2 text-lg"
-              >
-                {actionLoading === 'Stake' ? <><span className="animate-spin">⏳</span> Staking...</> : <>💰 Stake {room?.creator_stake_amount} SOL Now</>}
-              </button>
-            </div>
-            {/* Step 2 — Share code */}
-            <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6">
-              <h3 className="text-lg font-bold text-green-400 mb-2">📤 Then Share the Join Code</h3>
-              <p className="text-gray-300 text-sm mb-3">Give this code to a worker so they can join and stake their side:</p>
-              <div className="bg-gray-900 rounded-lg p-4 text-center">
-                <span className="text-3xl font-mono font-bold text-amber-400 tracking-widest">{joinCode}</span>
-              </div>
-            </div>
-          </div>
-        )}
-        {justJoined && (
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-6">
-            <p className="text-blue-400 font-medium">🤝 You've accepted this job! Review the terms and stake SOL to begin.</p>
-          </div>
-        )}
-
-        {/* Error / Success */}
+        {/* Error / Success banners */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4 mb-6">
             <p className="text-red-400 text-sm">{error}</p>
@@ -271,6 +371,29 @@ function RoomDetailContent() {
                 View on Solana Explorer →
               </a>
             )}
+          </div>
+        )}
+
+        {/* justCreated banner — share code */}
+        {justCreated && joinCode && isCreator && (
+          <div className="bg-green-500/10 border border-green-500/30 rounded-xl p-6 mb-6">
+            <h3 className="text-lg font-bold text-green-400 mb-2">📤 Share the Join Code</h3>
+            <p className="text-gray-300 text-sm mb-3">Give this code to a worker so they can join:</p>
+            <div className="bg-gray-900 rounded-lg p-4 text-center">
+              <span className="text-3xl font-mono font-bold text-amber-400 tracking-widest">{joinCode}</span>
+            </div>
+          </div>
+        )}
+
+        {/* justJoined fallback */}
+        {justJoined && !isJoiner && !isCreator && (
+          <div className="bg-amber-500/10 border-2 border-amber-500/40 rounded-xl p-6 mb-6">
+            <h3 className="text-lg font-bold text-amber-300 mb-2">🤝 You&apos;ve accepted this job!</h3>
+            <p className="text-gray-300 text-sm mb-3">Loading your participant data...</p>
+            <button onClick={() => fetchRoom()} disabled={loading}
+              className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-medium transition flex items-center gap-2">
+              {loading ? <><span className="animate-spin">⏳</span> Loading...</> : <>🔄 Refresh</>}
+            </button>
           </div>
         )}
 
@@ -294,22 +417,39 @@ function RoomDetailContent() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main content */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Stake Summary */}
+            {/* Escrow Summary */}
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">💰 Escrow Summary</h3>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-500 mb-1">Bounty (Creator)</p>
-                  <p className="text-xl font-bold text-amber-400">{room.creator_stake_amount} SOL</p>
+                  <p className="text-xs text-gray-500 mb-1">🏆 Reward</p>
+                  <p className="text-xl font-bold text-amber-400">{room.reward_amount} SOL</p>
+                  <p className="text-xs text-gray-500 mt-1">Paid to worker on resolve</p>
+                </div>
+                <div className="bg-gray-800/50 rounded-lg p-4 text-center">
+                  <p className="text-xs text-gray-500 mb-1">Creator Stake</p>
+                  <p className="text-xl font-bold text-purple-400">{room.creator_stake_amount} SOL</p>
+                  <p className={`text-xs mt-1 ${creatorFunded ? 'text-green-400' : 'text-gray-500'}`}>
+                    {creatorFunded ? '✅ Staked' : '⏳ Not staked'}
+                  </p>
                 </div>
                 <div className="bg-gray-800/50 rounded-lg p-4 text-center">
                   <p className="text-xs text-gray-500 mb-1">Worker Stake</p>
                   <p className="text-xl font-bold text-blue-400">{room.joiner_stake_amount} SOL</p>
+                  <p className={`text-xs mt-1 ${joinerFunded ? 'text-green-400' : 'text-gray-500'}`}>
+                    {joinerFunded ? '✅ Staked' : '⏳ Not staked'}
+                  </p>
                 </div>
                 <div className="bg-gray-800/50 rounded-lg p-4 text-center">
-                  <p className="text-xs text-gray-500 mb-1">Total Locked</p>
-                  <p className="text-xl font-bold text-green-400">{(room.creator_stake_amount + room.joiner_stake_amount).toFixed(4)} SOL</p>
+                  <p className="text-xs text-gray-500 mb-1">Total in Escrow</p>
+                  <p className="text-xl font-bold text-green-400">{(room.creator_stake_amount + room.reward_amount + room.joiner_stake_amount).toFixed(4)} SOL</p>
                 </div>
+              </div>
+              <div className="mt-3 bg-gray-800/30 rounded-lg p-3">
+                <p className="text-xs text-gray-500">
+                  💡 Creator deposits <span className="text-purple-400">{room.creator_stake_amount} SOL</span> stake + <span className="text-amber-400">{room.reward_amount} SOL</span> reward = <span className="text-white font-medium">{(room.creator_stake_amount + room.reward_amount).toFixed(4)} SOL</span> total.
+                  On resolve: creator gets <span className="text-purple-400">{room.creator_stake_amount} SOL</span> back, worker gets <span className="text-blue-400">{room.joiner_stake_amount} SOL</span> + <span className="text-amber-400">{room.reward_amount} SOL</span> reward.
+                </p>
               </div>
             </div>
 
@@ -320,36 +460,47 @@ function RoomDetailContent() {
                 <div className="flex items-center justify-between bg-gray-800/50 rounded-lg p-4">
                   <div>
                     <p className="text-sm text-gray-400">Job Poster</p>
-                    <p className="font-mono text-sm text-white">{room.creator_id.slice(0, 8)}...{room.creator_id.slice(-8)}</p>
+                    <p className="font-mono text-sm text-white">{room.creator_wallet ? `${room.creator_wallet.slice(0, 6)}...${room.creator_wallet.slice(-4)}` : 'Unknown'}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {isCreator && <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">You</span>}
-                    {room.creator_approved_terms && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Approved</span>}
+                    {creatorFunded && <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Staked ✓</span>}
+                    {room.creator_resolve_approved && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">Resolved ✓</span>}
                   </div>
                 </div>
-                {room.joiner_id ? (
+                {room.joiner_wallet ? (
                   <div className="flex items-center justify-between bg-gray-800/50 rounded-lg p-4">
                     <div>
                       <p className="text-sm text-gray-400">Worker</p>
-                      <p className="font-mono text-sm text-white">{room.joiner_id.slice(0, 8)}...{room.joiner_id.slice(-8)}</p>
+                      <p className="font-mono text-sm text-white">{room.joiner_wallet.slice(0, 6)}...{room.joiner_wallet.slice(-4)}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {isJoiner && <span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">You</span>}
-                      {room.joiner_approved_terms && <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">Approved</span>}
+                      {joinerFunded && <span className="text-xs bg-purple-500/20 text-purple-400 px-2 py-0.5 rounded-full">Staked ✓</span>}
+                      {room.joiner_resolve_approved && <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full">Resolved ✓</span>}
+                    </div>
+                  </div>
+                ) : interestedWallets.length > 0 ? (
+                  <div className="bg-gray-800/30 rounded-lg p-4 border border-dashed border-gray-700">
+                    <p className="text-amber-400 text-sm font-medium mb-2">🙋 {interestedWallets.length} interested worker{interestedWallets.length > 1 ? 's' : ''}</p>
+                    <div className="space-y-1">
+                      {interestedWallets.map((w: string) => (
+                        <p key={w} className="font-mono text-xs text-gray-400">{w.slice(0,6)}...{w.slice(-4)}</p>
+                      ))}
                     </div>
                   </div>
                 ) : (
                   <div className="bg-gray-800/30 rounded-lg p-4 text-center border border-dashed border-gray-700">
-                    <p className="text-gray-500 text-sm">Waiting for a worker to accept...</p>
+                    <p className="text-gray-500 text-sm">Waiting for workers to mark interest...</p>
                     {room.join_code && isCreator && (
-                      <p className="text-xs text-gray-600 mt-2">Join code: <span className="text-amber-400 font-mono">{room.join_code}</span></p>
+                      <p className="text-xs text-gray-600 mt-2">Join code: <span className="text-amber-400 font-mono font-bold">{room.join_code}</span></p>
                     )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Terms / Conditions */}
+            {/* Contract Terms */}
             {room.terms && (
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
                 <h3 className="text-lg font-semibold mb-4">📋 Contract Terms</h3>
@@ -384,7 +535,7 @@ function RoomDetailContent() {
             )}
           </div>
 
-          {/* Sidebar: Actions */}
+          {/* ============ SIDEBAR: ACTIONS ============ */}
           <div className="space-y-4">
             {!connected && (
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center">
@@ -393,64 +544,173 @@ function RoomDetailContent() {
               </div>
             )}
 
-            {connected && isParticipant && (
+            {/* === WORKFLOW ACTIONS === */}
+            {connected && wallet && (
               <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
-                <h3 className="text-lg font-semibold mb-4">⚡ Actions</h3>
+                <h3 className="text-lg font-semibold mb-4">⚡ Workflow</h3>
+
+                {/* ── Progress tracker ── */}
+                <div className="space-y-2 mb-5">
+                  {isCreator ? (
+                    <>
+                      <StepChip label="1. Staked SOL" done={creatorFunded} active={currentStep === 'pending_init'} />
+                      <StepChip label="2. Accept a worker" done={!!room.joiner_wallet} active={currentStep === 'wait_interest' || currentStep === 'accept_joiner'} />
+                      <StepChip label="3. Worker stakes" done={bothStaked} active={currentStep === 'wait_joiner_stake'} />
+                      <StepChip label="4. Approve resolution" done={myResolveApproved} active={currentStep === 'resolve'} />
+                      <StepChip label="5. Finalize on-chain" done={room.status === 'resolved'} active={currentStep === 'finalize'} />
+                    </>
+                  ) : isJoiner ? (
+                    <>
+                      <StepChip label="1. Accepted by creator" done={true} active={false} />
+                      <StepChip label="2. Stake your SOL" done={joinerFunded} active={currentStep === 'stake'} />
+                      <StepChip label="3. Approve resolution" done={myResolveApproved} active={currentStep === 'resolve'} />
+                      <StepChip label="4. Creator finalizes" done={room.status === 'resolved'} active={bothApproved && room.status === 'active'} />
+                    </>
+                  ) : (
+                    <>
+                      <StepChip label="1. Mark interest" done={hasMarkedInterest} active={currentStep === 'mark_interest'} />
+                      <StepChip label="2. Wait for acceptance" done={false} active={currentStep === 'wait_acceptance'} />
+                    </>
+                  )}
+                </div>
+
+                {/* ── Current action ── */}
                 <div className="space-y-3">
+                  {/* CREATOR: pending init */}
+                  {isCreator && currentStep === 'pending_init' && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4 text-center">
+                      <p className="text-yellow-400 text-sm font-medium">⏳ Room initialization in progress...</p>
+                    </div>
+                  )}
 
-                  {/* Stake — for funding phase or when participants haven't staked */}
-                  {['pending', 'funding', 'awaiting_approval'].includes(room.status) && (
-                    <button onClick={() => doStake(isCreator)} disabled={!!actionLoading}
-                      className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-medium transition flex items-center justify-center gap-2">
-                      {actionLoading === 'Stake' ? <span className="animate-spin">⏳</span> : '💰'}
-                      {actionLoading === 'Stake' ? 'Staking...' : `Stake ${isCreator ? room.creator_stake_amount : room.joiner_stake_amount} SOL`}
+                  {/* CREATOR: Waiting for interest */}
+                  {isCreator && currentStep === 'wait_interest' && (
+                    <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4 text-center">
+                      <p className="text-blue-400 text-sm font-medium mb-2">📢 Your room is live! Waiting for workers to express interest.</p>
+                      {room.join_code && (
+                        <div className="mt-2">
+                          <p className="text-gray-400 text-xs mb-1">Share this join code:</p>
+                          <span className="text-2xl font-mono font-bold text-amber-400 tracking-widest">{room.join_code}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* CREATOR: Accept a joiner from interested list */}
+                  {isCreator && currentStep === 'accept_joiner' && (
+                    <div className="space-y-3">
+                      <p className="text-amber-400 text-sm font-medium">🙋 {interestedWallets.length} worker{interestedWallets.length > 1 ? 's' : ''} interested — pick one:</p>
+                      {interestedWallets.map((w: string) => (
+                        <div key={w} className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3">
+                          <span className="font-mono text-xs text-gray-300">{w.slice(0,6)}...{w.slice(-4)}</span>
+                          <button onClick={() => doAcceptJoiner(w)} disabled={!!actionLoading}
+                            className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition">
+                            {actionLoading === 'AcceptJoiner' ? '...' : 'Accept'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* CREATOR: Waiting for joiner to stake */}
+                  {isCreator && currentStep === 'wait_joiner_stake' && (
+                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-lg p-4 text-center">
+                      <p className="text-purple-400 text-sm font-medium">⏳ Waiting for worker to stake {room.joiner_stake_amount} SOL...</p>
+                    </div>
+                  )}
+
+                  {/* JOINER: Stake */}
+                  {isJoiner && currentStep === 'stake' && (
+                    <button onClick={() => doStake(false)} disabled={!!actionLoading}
+                      className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                      {actionLoading === 'Stake' ? <><span className="animate-spin">⏳</span> Staking...</> : <>💰 Stake {room.joiner_stake_amount} SOL</>}
                     </button>
                   )}
 
-                  {/* Approve — both parties must approve */}
-                  {['active', 'funding', 'awaiting_approval'].includes(room.status) && (
-                    <button onClick={doApprove} disabled={!!actionLoading}
-                      className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white py-3 rounded-lg font-medium transition flex items-center justify-center gap-2">
-                      {actionLoading === 'Approve' ? <span className="animate-spin">⏳</span> : '✅'}
-                      {actionLoading === 'Approve' ? 'Approving...' : 'Approve Resolution'}
+                  {/* NON-PARTICIPANT: Mark interest */}
+                  {!isParticipant && currentStep === 'mark_interest' && (
+                    <button onClick={doMarkInterest} disabled={!!actionLoading}
+                      className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                      {actionLoading === 'MarkInterest' ? <><span className="animate-spin">⏳</span> Marking...</> : <>🙋 Mark Interest</>}
                     </button>
                   )}
 
-                  {/* Resolve — after both approved */}
-                  {room.status === 'active' && (
-                    <button onClick={doResolve} disabled={!!actionLoading}
-                      className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-medium transition flex items-center justify-center gap-2">
-                      {actionLoading === 'Resolve' ? <span className="animate-spin">⏳</span> : '🏁'}
-                      {actionLoading === 'Resolve' ? 'Resolving...' : 'Resolve (Complete Job)'}
+                  {/* NON-PARTICIPANT: Waiting for acceptance */}
+                  {!isParticipant && currentStep === 'wait_acceptance' && (
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4 text-center">
+                      <p className="text-amber-400 text-sm font-medium">🙋 You&apos;ve expressed interest!</p>
+                      <p className="text-gray-400 text-xs mt-1">Waiting for the creator to accept you...</p>
+                    </div>
+                  )}
+
+                  {/* BOTH PARTICIPANTS: Approve resolution */}
+                  {currentStep === 'resolve' && (
+                    <button onClick={doResolveApprove} disabled={!!actionLoading}
+                      className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                      {actionLoading === 'ResolveApprove' ? <><span className="animate-spin">⏳</span> Approving...</> : <>🏁 Approve Resolution</>}
                     </button>
                   )}
 
-                  {/* Slash */}
-                  {['active', 'funding'].includes(room.status) && (
-                    <button onClick={doSlash} disabled={!!actionLoading}
-                      className="w-full bg-red-600/80 hover:bg-red-600 disabled:opacity-50 text-white py-3 rounded-lg font-medium transition flex items-center justify-center gap-2">
-                      {actionLoading === 'Slash' ? <span className="animate-spin">⏳</span> : '⚠️'}
-                      {actionLoading === 'Slash' ? 'Slashing...' : 'Slash (Burn Stakes)'}
-                    </button>
+                  {/* CREATOR: Finalize resolution on-chain (sign resolve tx + reward transfer) */}
+                  {isCreator && currentStep === 'finalize' && (
+                    <div className="space-y-3">
+                      <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-center">
+                        <p className="text-emerald-400 text-sm font-medium mb-1">✅ Both parties approved!</p>
+                        <p className="text-gray-400 text-xs">Sign the on-chain resolve transaction to release stakes and transfer the {room.reward_amount} SOL reward to the worker.</p>
+                      </div>
+                      <button onClick={doFinalizeResolve} disabled={!!actionLoading}
+                        className="w-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white py-3 rounded-lg font-bold transition flex items-center justify-center gap-2">
+                        {actionLoading === 'Resolve' ? <><span className="animate-spin">⏳</span> Finalizing...</> : <>🔏 Finalize Resolution On-Chain</>}
+                      </button>
+                    </div>
                   )}
 
-                  {/* Cancel — creator can cancel if not fully funded */}
-                  {['pending', 'funding'].includes(room.status) && isCreator && (
-                    <button onClick={doCancel} disabled={!!actionLoading}
-                      className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-3 rounded-lg font-medium transition flex items-center justify-center gap-2">
-                      {actionLoading === 'Cancel' ? <span className="animate-spin">⏳</span> : '🚫'}
-                      {actionLoading === 'Cancel' ? 'Cancelling...' : 'Cancel Job'}
-                    </button>
+                  {/* JOINER: Waiting for creator to finalize */}
+                  {isJoiner && bothApproved && room.status === 'active' && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-center">
+                      <p className="text-emerald-400 text-sm font-medium mb-1">✅ Both parties approved!</p>
+                      <p className="text-amber-400 text-xs">Waiting for the creator to sign the on-chain resolve transaction...</p>
+                    </div>
+                  )}
+
+                  {/* Waiting for other party resolution */}
+                  {currentStep === 'done' && myResolveApproved && !otherResolveApproved && isParticipant && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-4 text-center">
+                      <p className="text-emerald-400 text-sm font-medium">✅ You approved resolution</p>
+                      <p className="text-amber-400 text-xs mt-1">Waiting for the other party to approve...</p>
+                    </div>
+                  )}
+
+                  {/* Resolution status chips */}
+                  {bothStaked && (myResolveApproved || otherResolveApproved) && (
+                    <div className="flex items-center gap-3 text-xs pt-1">
+                      <span className={room.creator_resolve_approved ? 'text-green-400' : 'text-gray-500'}>
+                        {room.creator_resolve_approved ? '✅' : '⏳'} Creator
+                      </span>
+                      <span className={room.joiner_resolve_approved ? 'text-green-400' : 'text-gray-500'}>
+                        {room.joiner_resolve_approved ? '✅' : '⏳'} Worker
+                      </span>
+                    </div>
                   )}
                 </div>
 
-                {/* Action descriptions */}
-                <div className="mt-4 space-y-2 text-xs text-gray-500">
-                  <p>💡 <strong>Stake:</strong> Both sides lock funds. Creator puts up a bounty; worker puts up collateral. This protects both parties.</p>
-                  <p>💡 <strong>Approve:</strong> Signal that the work is done.</p>
-                  <p>💡 <strong>Resolve:</strong> Release escrowed SOL to both parties.</p>
-                  <p>💡 <strong>Slash:</strong> Burn ALL stakes. Both parties lose.</p>
-                </div>
+                {/* Destructive actions */}
+                {isParticipant && (
+                  <div className="mt-6 pt-4 border-t border-gray-800">
+                    {room.status === 'active' && (
+                      <button onClick={doSlash} disabled={!!actionLoading}
+                        className="w-full bg-red-600/60 hover:bg-red-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+                        {actionLoading === 'Slash' ? <><span className="animate-spin">⏳</span> Slashing...</> : <>⚠️ Slash (Burn All Stakes)</>}
+                      </button>
+                    )}
+                    {['pending', 'open', 'awaiting_joiner_stake'].includes(room.status) && isCreator && (
+                      <button onClick={doCancel} disabled={!!actionLoading}
+                        className="w-full bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2 mt-2">
+                        {actionLoading === 'Cancel' ? <><span className="animate-spin">⏳</span> Cancelling...</> : <>🚫 Cancel Job</>}
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
@@ -472,18 +732,18 @@ function RoomDetailContent() {
                   <span className="text-gray-500">Created</span>
                   <span className="text-gray-300">{new Date(room.created_at).toLocaleDateString()}</span>
                 </div>
-                {room.contract_deadline && (
+                {room.metadata?.contract_deadline && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">Deadline</span>
-                    <span className="text-gray-300">{new Date(room.contract_deadline).toLocaleDateString()}</span>
+                    <span className="text-gray-300">{new Date(room.metadata.contract_deadline).toLocaleDateString()}</span>
                   </div>
                 )}
-                {room.on_chain_address && (
+                {room.metadata?.on_chain_address && (
                   <div className="flex justify-between">
                     <span className="text-gray-500">On-Chain</span>
-                    <a href={`https://explorer.solana.com/address/${room.on_chain_address}?cluster=devnet`}
+                    <a href={`https://explorer.solana.com/address/${room.metadata.on_chain_address}?cluster=devnet`}
                       target="_blank" rel="noopener noreferrer" className="text-violet-400 hover:text-violet-300 font-mono text-xs">
-                      {room.on_chain_address.slice(0, 8)}...
+                      {room.metadata.on_chain_address.slice(0, 8)}...
                     </a>
                   </div>
                 )}
@@ -495,6 +755,23 @@ function RoomDetailContent() {
     </div>
   );
 }
+
+/** Step progress chip */
+function StepChip({ label, done, active }: { label: string; done: boolean; active: boolean }) {
+  return (
+    <div className={`flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg transition-all ${
+      done
+        ? 'bg-green-800/30 text-green-400'
+        : active
+          ? 'bg-amber-500/10 border border-amber-500/40 text-amber-300 font-medium'
+          : 'bg-gray-800/30 text-gray-500'
+    }`}>
+      <span>{done ? '✅' : active ? '👉' : '⬜'}</span>
+      <span>{label}</span>
+    </div>
+  );
+}
+
 export default function RoomDetailPage() {
   return (
     <Suspense fallback={

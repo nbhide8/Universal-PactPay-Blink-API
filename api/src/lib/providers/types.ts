@@ -79,6 +79,8 @@ export interface CreateLockboxParams {
   roomId: string;
   creatorStakeAmount: number;
   joinerStakeAmount: number;
+  /** Reward/bounty the creator pays the worker on successful resolution */
+  rewardAmount: number;
   /** Currency code: "SOL" for direct, "USD"/"EUR" for custodial */
   currency?: string;
   /** Payment rail for custodial mode */
@@ -108,6 +110,8 @@ export interface ResolveParams {
   joinerAddress: string;
   creatorParticipantId: string;
   joinerParticipantId: string;
+  /** Reward amount in SOL to transfer from creator → joiner during resolve */
+  rewardAmount: number;
 }
 
 export interface SlashParams {

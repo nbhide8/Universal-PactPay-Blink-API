@@ -4,12 +4,12 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import Link from 'next/link';
-import { getRooms, type Room } from '@/lib/api';
+import { getRooms, markInterest, type Room } from '@/lib/api';
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: 'bg-green-500/20 text-green-400 border-green-500/30',
-  awaiting_approval: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  funding: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
+  pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  open: 'bg-green-500/20 text-green-400 border-green-500/30',
+  awaiting_joiner_stake: 'bg-purple-500/20 text-purple-400 border-purple-500/30',
   active: 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   resolved: 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
   slashed: 'bg-red-500/20 text-red-400 border-red-500/30',
@@ -17,9 +17,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Open — Hiring',
-  awaiting_approval: 'Under Review',
-  funding: 'Staking in Progress',
+  pending: 'Setting Up',
+  open: 'Open — Hiring',
+  awaiting_joiner_stake: 'Worker Staking',
   active: 'In Progress',
   resolved: 'Completed',
   slashed: 'Slashed',
@@ -36,6 +36,7 @@ export default function BrowseJobsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [actionLoading, setActionLoading] = useState('');
   const limit = 12;
 
   const fetchJobs = useCallback(async () => {
@@ -98,7 +99,7 @@ export default function BrowseJobsPage() {
             <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="bg-gray-900 border border-gray-700 rounded-lg px-3 py-3 text-white text-sm">
               <option value="">All Statuses</option>
-              <option value="pending">Open (Hiring)</option>
+              <option value="open">Open (Hiring)</option>
               <option value="active">In Progress</option>
               <option value="resolved">Completed</option>
             </select>
@@ -142,16 +143,18 @@ export default function BrowseJobsPage() {
         {!loading && jobs.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {jobs.map((job) => {
-              const isCreator = job.creator_id === myWallet;
-              const isJoiner = job.joiner_id === myWallet;
-              const isJoinable = job.status === 'pending' && !job.joiner_id && !isCreator;
+              const isCreator = job.creator_wallet === myWallet;
+              const isJoiner = job.joiner_wallet === myWallet;
+              const hasMarkedInterest = myWallet && (job.interested_wallets || []).includes(myWallet);
+              const canMarkInterest = job.status === 'open' && !isCreator && !isJoiner && !hasMarkedInterest && !!myWallet;
+              const interestCount = (job.interested_wallets || []).length;
               return (
                 <div key={job.id} className="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden hover:border-gray-700 transition group">
                   <div className="p-6 pb-4">
                     <div className="flex items-start justify-between mb-3">
                       <h3 className="text-lg font-semibold text-white group-hover:text-amber-300 transition line-clamp-1">{job.title}</h3>
                       <span className={`text-xs px-2 py-1 rounded-full border whitespace-nowrap ml-2 ${STATUS_COLORS[job.status] || 'bg-gray-500/20 text-gray-400'}`}>
-                        {job.status === 'pending' && !job.joiner_id ? 'Hiring' : (STATUS_LABELS[job.status] || job.status)}
+                        {STATUS_LABELS[job.status] || job.status}
                       </span>
                     </div>
                     {job.description && <p className="text-gray-400 text-sm mb-4 line-clamp-2">{job.description}</p>}
@@ -175,17 +178,35 @@ export default function BrowseJobsPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>By <span className="text-gray-400 font-mono">{job.creator_id.slice(0, 4)}...{job.creator_id.slice(-4)}</span></span>
+                      <span>By <span className="text-gray-400 font-mono">{job.creator_wallet ? `${job.creator_wallet.slice(0, 4)}...${job.creator_wallet.slice(-4)}` : 'Unknown'}</span></span>
+                      {interestCount > 0 && <span className="text-blue-400">{interestCount} interested</span>}
                     </div>
                     {isCreator && <div className="mt-2"><span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full">Your Job</span></div>}
                     {isJoiner && <div className="mt-2"><span className="text-xs bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full">Accepted</span></div>}
+                    {hasMarkedInterest && !isJoiner && <div className="mt-2"><span className="text-xs bg-cyan-500/20 text-cyan-400 px-2 py-0.5 rounded-full">Interest Marked</span></div>}
                   </div>
-                  <div className="border-t border-gray-800 p-4 bg-gray-900/50">
-                    {isJoinable ? (
-                      <Link href={`/join?code=${job.join_code}`} className="block w-full bg-amber-600 hover:bg-amber-500 text-white text-center py-2 rounded-lg text-sm font-medium transition">Accept Job</Link>
-                    ) : (
-                      <Link href={`/room/${job.id}`} className="block w-full bg-gray-800 hover:bg-gray-700 text-white text-center py-2 rounded-lg text-sm font-medium transition">View Details</Link>
+                  <div className="border-t border-gray-800 p-4 bg-gray-900/50 flex gap-2">
+                    {canMarkInterest && (
+                      <button
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          setActionLoading(job.id);
+                          try {
+                            await markInterest(job.id, { walletAddress: myWallet! });
+                            fetchJobs();
+                          } catch (err: any) {
+                            alert(err.message || 'Failed to mark interest');
+                          } finally {
+                            setActionLoading('');
+                          }
+                        }}
+                        disabled={actionLoading === job.id}
+                        className="flex-1 bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white text-center py-2 rounded-lg text-sm font-medium transition"
+                      >
+                        {actionLoading === job.id ? 'Marking...' : '🤝 Mark Interest'}
+                      </button>
                     )}
+                    <Link href={`/room/${job.id}`} className={`${canMarkInterest ? 'flex-1' : 'w-full'} block bg-gray-800 hover:bg-gray-700 text-white text-center py-2 rounded-lg text-sm font-medium transition`}>View Details</Link>
                   </div>
                 </div>
               );

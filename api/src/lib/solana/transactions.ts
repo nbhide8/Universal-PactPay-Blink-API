@@ -263,17 +263,24 @@ export interface BuildResolveTxInput {
   joinerParticipantId: string;
   creatorWallet: string;
   joinerWallet: string;
+  /** Reward in SOL to transfer from creator → joiner after escrow release */
+  rewardAmount: number;
 }
 
 /**
  * Build a `resolve` transaction.
  * Returns staked SOL to both parties. Requires both to have approved first.
+ * Includes an additional SystemProgram.transfer instruction to send
+ * the reward from the creator's wallet to the joiner's wallet.
+ *
+ * The creator MUST sign this transaction (they authorize the reward transfer).
  */
 export async function buildResolveTx(
   input: BuildResolveTxInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const feePayer = new PublicKey(input.walletAddress);
+  // The fee payer / signer MUST be the creator (they authorize reward transfer)
+  const feePayer = new PublicKey(input.creatorWallet);
 
   const roomHash = Array.from(hashString(input.roomId));
   const creatorParticipantHash = Array.from(hashString(input.creatorParticipantId));
@@ -282,7 +289,8 @@ export async function buildResolveTx(
   const creatorStakeRecordPDA = getStakeRecordPDA(input.roomId, input.creatorParticipantId);
   const joinerStakeRecordPDA = getStakeRecordPDA(input.roomId, input.joinerParticipantId);
 
-  const ix = buildRawInstruction(
+  // ix1: On-chain resolve — returns staked SOL from escrow to both parties
+  const resolveIx = buildRawInstruction(
     'resolve',
     { roomHash, roomId: input.roomId, creatorParticipantHash, joinerParticipantHash },
     [
@@ -295,11 +303,26 @@ export async function buildResolveTx(
     ]
   );
 
-  const transaction = await buildUnsignedTx(connection, feePayer, ix);
+  const instructions: TransactionInstruction[] = [resolveIx];
+
+  // ix2: Transfer reward from creator → joiner via SystemProgram
+  // After ix1 returns creator_stake+reward to creator wallet, ix2 sends
+  // the reward portion to the joiner. Atomic — if either fails, both revert.
+  const rewardLamports = Math.round((input.rewardAmount || 0) * LAMPORTS_PER_SOL);
+  if (rewardLamports > 0) {
+    const rewardIx = SystemProgram.transfer({
+      fromPubkey: new PublicKey(input.creatorWallet),
+      toPubkey: new PublicKey(input.joinerWallet),
+      lamports: rewardLamports,
+    });
+    instructions.push(rewardIx);
+  }
+
+  const transaction = await buildUnsignedTx(connection, feePayer, ...instructions);
 
   return {
     transaction,
-    message: `Resolve room "${input.roomId}" — return SOL to both parties`,
+    message: `Resolve room "${input.roomId}" — return stakes + transfer ${input.rewardAmount || 0} SOL reward to worker`,
     accounts: {
       escrowPDA: escrowPDA.toBase58(),
       creatorStakeRecord: creatorStakeRecordPDA.toBase58(),

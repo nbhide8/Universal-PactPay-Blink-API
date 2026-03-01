@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRoomFull } from '@/lib/database';
 import { fetchOnChainRoom } from '@/lib/solana/transactions';
 
+// Never cache this route — always query the database fresh
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * GET /api/v1/rooms/[roomId] — Get complete room details
@@ -36,11 +40,14 @@ export async function GET(
     // Fetch on-chain data (may be null if escrow not yet initialized)
     const onChain = await fetchOnChainRoom(roomId);
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       success: true,
       room,
       onChain,
     });
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+    response.headers.set('Pragma', 'no-cache');
+    return response;
   } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },

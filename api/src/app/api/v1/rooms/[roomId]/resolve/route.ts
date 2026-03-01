@@ -3,6 +3,9 @@ import { getEngine } from '@/lib/providers';
 import { getRoomFull } from '@/lib/database';
 import { verifyRequestSignature, isSignatureRequired } from '@/lib/auth/verify';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * ─────────────────────────────────────────────────────────────────────────────
  * POST /api/v1/rooms/[roomId]/resolve — Resolve the escrow
@@ -53,26 +56,31 @@ export async function POST(
       );
     }
 
-    const creator = room.participants?.find((p) => p.role === 'creator');
-    const joiner = room.participants?.find((p) => p.role === 'joiner');
-
-    if (!creator || !joiner) {
+    if (!room.creator_wallet || !room.joiner_wallet) {
       return NextResponse.json(
         { success: false, error: 'Both creator and joiner must be in the room' },
         { status: 400 }
       );
     }
 
-    // Delegate to escrow engine
-    // Use wallet_address (not Supabase UUID) as participantId — must match what was used during staking
+    // Only the creator can sign the resolve tx (they authorize the reward transfer)
+    if (walletAddress !== room.creator_wallet) {
+      return NextResponse.json(
+        { success: false, error: 'Only the room creator can sign the resolve transaction (reward transfer requires creator authorization)' },
+        { status: 403 }
+      );
+    }
+
+    // Delegate to escrow engine — wallet addresses are participant IDs
     const engine = getEngine((room as any).mode || (room as any).provider);
     const lockbox = await engine.resolveLockbox({
       roomId: params.roomId,
       callerAddress: walletAddress,
-      creatorParticipantId: creator.wallet_address,
-      joinerParticipantId: joiner.wallet_address,
-      creatorAddress: creator.wallet_address,
-      joinerAddress: joiner.wallet_address,
+      creatorParticipantId: room.creator_wallet,
+      joinerParticipantId: room.joiner_wallet,
+      creatorAddress: room.creator_wallet,
+      joinerAddress: room.joiner_wallet,
+      rewardAmount: room.reward_amount || 0,
     });
 
     return NextResponse.json({

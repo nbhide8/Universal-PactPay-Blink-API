@@ -166,10 +166,12 @@ export class CustodialEngine implements EscrowEngine {
     const escrowPda = getRoomEscrowPDA(params.roomId).toBase58();
 
     // Build the Solana transaction using the PLATFORM wallet as creator
+    // On-chain creator stake includes the reward
+    const onChainCreatorStake = params.creatorStakeAmount + (params.rewardAmount || 0);
     const txResult = await buildInitializeRoomTx({
       walletAddress: platformWallet,
       roomId: params.roomId,
-      creatorStakeAmount: params.creatorStakeAmount,
+      creatorStakeAmount: onChainCreatorStake,
       joinerStakeAmount: params.joinerStakeAmount,
     });
 
@@ -302,6 +304,7 @@ export class CustodialEngine implements EscrowEngine {
       // In custodial mode, both parties' SOL returns to platform wallet
       creatorWallet: platformWallet,
       joinerWallet: platformWallet,
+      rewardAmount: params.rewardAmount || 0,
     });
 
     const { signature } = await custodialSignAndSubmit(txResult.transaction);

@@ -6,7 +6,7 @@ import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { Transaction } from '@solana/web3.js';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createRoom, submitTransaction, type ConditionType, type ContractConditionData } from '@/lib/api';
+import { createRoom, stakeRoom, submitTransaction, type ConditionType, type ContractConditionData } from '@/lib/api';
 
 export default function CreateJobPage() {
   const router = useRouter();
@@ -19,8 +19,11 @@ export default function CreateJobPage() {
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
   const [creatorStake, setCreatorStake] = useState('0.1');
+  const [creatorStakeAmount, setCreatorStakeAmount] = useState('0.1');
   const [joinerStake, setJoinerStake] = useState('0.05');
-  const [mode, setMode] = useState<'direct' | 'custodial'>('custodial');
+  // Custodial mode disabled for now — defaulting to direct/wallet mode
+  // const [mode, setMode] = useState<'direct' | 'custodial'>('custodial');
+  const [mode, setMode] = useState<'direct' | 'custodial'>('direct');
   const [conditions, setConditions] = useState<ContractConditionData[]>([
     { type: 'task_completion' as ConditionType, description: 'Complete the assigned task as described', required: true },
   ]);
@@ -54,7 +57,7 @@ export default function CreateJobPage() {
         title: title.trim(),
         description: description.trim() || undefined,
         rewardAmount: parseFloat(creatorStake),
-        creatorStakeAmount: parseFloat(creatorStake),
+        creatorStakeAmount: parseFloat(creatorStakeAmount),
         joinerStakeAmount: parseFloat(joinerStake),
         mode,
         tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
@@ -65,18 +68,38 @@ export default function CreateJobPage() {
         },
       });
 
-      // Direct mode: sign and submit the on-chain init transaction
+      // Direct mode: sign and submit the on-chain init transaction, then auto-stake
       if (result.lockbox?.mode === 'direct' && result.lockbox.action?.payload && signTransaction) {
-        const txBytes = Buffer.from(result.lockbox.action.payload, 'base64');
-        const tx = Transaction.from(txBytes);
-        const signed = await signTransaction(tx);
-        const signedBase64 = Buffer.from(signed.serialize()).toString('base64');
+        // Step 1: Sign & submit init transaction
+        const initBytes = Buffer.from(result.lockbox.action.payload, 'base64');
+        const initTx = Transaction.from(initBytes);
+        const signedInit = await signTransaction(initTx);
+        const signedInitB64 = Buffer.from(signedInit.serialize()).toString('base64');
         await submitTransaction({
-          signedTransaction: signedBase64,
+          signedTransaction: signedInitB64,
           roomId: result.room.id,
           action: 'initialize_room',
           walletAddress: publicKey.toBase58(),
         });
+
+        // Step 2: Auto-stake creator's SOL
+        const stakeResult = await stakeRoom(result.room.id, {
+          walletAddress: publicKey.toBase58(),
+          isCreator: true,
+        });
+        if (stakeResult.lockbox?.action?.payload) {
+          const stakeBytes = Buffer.from(stakeResult.lockbox.action.payload, 'base64');
+          const stakeTx = Transaction.from(stakeBytes);
+          const signedStake = await signTransaction(stakeTx);
+          const signedStakeB64 = Buffer.from(signedStake.serialize()).toString('base64');
+          await submitTransaction({
+            signedTransaction: signedStakeB64,
+            roomId: result.room.id,
+            action: 'stake',
+            walletAddress: publicKey.toBase58(),
+            metadata: { isCreator: true },
+          });
+        }
       }
 
       router.push(`/room/${result.room.id}?created=true&joinCode=${result.room.join_code}`);
@@ -148,12 +171,18 @@ export default function CreateJobPage() {
           <div className="space-y-6">
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-4">💰 Stake Configuration</h3>
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-3 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Your Bounty (SOL)</label>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Bounty / Reward (SOL)</label>
                   <input type="number" step="0.01" min="0.01" value={creatorStake} onChange={(e) => setCreatorStake(e.target.value)}
                     className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
-                  <p className="text-xs text-gray-500 mt-1">Reward for the worker</p>
+                  <p className="text-xs text-gray-500 mt-1">Reward paid to the worker</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">Your Stake (SOL)</label>
+                  <input type="number" step="0.01" min="0.01" value={creatorStakeAmount} onChange={(e) => setCreatorStakeAmount(e.target.value)}
+                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-amber-500/50" />
+                  <p className="text-xs text-gray-500 mt-1">Your collateral (slashed if you bail)</p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Worker Stake (SOL)</label>
@@ -162,11 +191,13 @@ export default function CreateJobPage() {
                   <p className="text-xs text-gray-500 mt-1">Worker puts up as collateral</p>
                 </div>
               </div>
-              <div className="mt-6 bg-gray-800/50 rounded-lg p-4">
-                <p className="text-sm text-gray-400">Total locked: <span className="text-amber-400 font-bold">{(parseFloat(creatorStake || '0') + parseFloat(joinerStake || '0')).toFixed(4)} SOL</span></p>
+              <div className="mt-6 bg-gray-800/50 rounded-lg p-4 space-y-1">
+                <p className="text-sm text-gray-400">Total locked in escrow: <span className="text-amber-400 font-bold">{(parseFloat(creatorStakeAmount || '0') + parseFloat(creatorStake || '0') + parseFloat(joinerStake || '0')).toFixed(4)} SOL</span></p>
+                <p className="text-xs text-gray-500">Creator deposits: {creatorStakeAmount} SOL stake + {creatorStake} SOL reward = {(parseFloat(creatorStakeAmount || '0') + parseFloat(creatorStake || '0')).toFixed(4)} SOL &middot; Worker stakes: {joinerStake} SOL</p>
               </div>
             </div>
 
+            {/* Custodial mode selector — commented out for now
             <div className="bg-gray-900 border border-gray-800 rounded-xl p-6">
               <h3 className="text-lg font-semibold mb-2">🔧 Escrow Mode</h3>
               <p className="text-xs text-gray-500 mb-4">Both modes lock real funds on the Solana blockchain. The difference is how you interact.</p>
@@ -181,6 +212,7 @@ export default function CreateJobPage() {
                 </button>
               </div>
             </div>
+            */}
 
             <div className="flex justify-between">
               <button onClick={() => setStep(1)} className="bg-gray-800 hover:bg-gray-700 text-white px-6 py-3 rounded-lg font-medium transition">← Back</button>
@@ -234,9 +266,10 @@ export default function CreateJobPage() {
               <h3 className="text-lg font-semibold mb-4">📄 Summary</h3>
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between"><span className="text-gray-400">Title</span><span className="text-white font-medium">{title}</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Your Bounty</span><span className="text-amber-400 font-bold">{creatorStake} SOL</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Bounty</span><span className="text-amber-400 font-bold">{creatorStake} SOL</span></div>
+                <div className="flex justify-between"><span className="text-gray-400">Your Stake</span><span className="text-purple-400 font-bold">{creatorStakeAmount} SOL</span></div>
                 <div className="flex justify-between"><span className="text-gray-400">Worker Stake</span><span className="text-blue-400 font-bold">{joinerStake} SOL</span></div>
-                <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white">{mode === 'custodial' ? '💳 Easy Pay' : '🔗 Wallet (On-chain)'}</span></div>
+                {/* <div className="flex justify-between"><span className="text-gray-400">Mode</span><span className="text-white">{mode === 'custodial' ? '💳 Easy Pay' : '🔗 Wallet (On-chain)'}</span></div> */}
                 <div className="flex justify-between"><span className="text-gray-400">Conditions</span><span className="text-white">{conditions.length}</span></div>
               </div>
             </div>
