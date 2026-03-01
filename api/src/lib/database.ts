@@ -1,4 +1,7 @@
-import { supabase } from './supabase';
+import { createServiceClient } from './supabase';
+
+// All database operations use the service client so RLS is bypassed server-side.
+const supabase = createServiceClient();
 import type {
   Room,
   RoomParticipant,
@@ -13,6 +16,41 @@ import type {
 import { getRoomEscrowPDA, getStakeRecordPDA, hashString } from './solana/pda';
 
 // ============================================================================
+// USERS
+// ============================================================================
+
+/**
+ * Look up a user by wallet address, creating one if they don't exist yet.
+ * Returns the UUID used as creator_id / user_id in all tables.
+ */
+export async function upsertUserByWallet(walletAddress: string): Promise<string> {
+  // Try existing
+  const { data: existing } = await supabase
+    .from('users')
+    .select('id')
+    .eq('wallet_address', walletAddress)
+    .single();
+
+  if (existing) return existing.id;
+
+  // Create new — username must be unique; wallet address is unique by definition
+  const shortHandle = walletAddress.slice(0, 8).toLowerCase();
+  const { data: created, error } = await supabase
+    .from('users')
+    .insert({
+      username: walletAddress,          // full address as username (unique)
+      display_name: `${shortHandle}…`,  // short display
+      wallet_address: walletAddress,
+      wallet_verified: false,
+    })
+    .select('id')
+    .single();
+
+  if (error || !created) throw new Error(`Failed to register user: ${error?.message}`);
+  return created.id;
+}
+
+// ============================================================================
 // ROOMS
 // ============================================================================
 
@@ -24,21 +62,25 @@ export async function createRoom(
   walletAddress: string,
   request: CreateRoomRequest
 ): Promise<Room> {
+  // 0. Resolve wallet → UUID (upsert on first visit)
+  const resolvedUserId = await upsertUserByWallet(walletAddress);
+
   // 1. Insert room
   const { data: room, error: roomError } = await supabase
     .from('rooms')
     .insert({
       title: request.title,
       description: request.description,
-      creator_id: userId,
+      creator_id: resolvedUserId,
       status: 'pending',
+      reward_amount: request.rewardAmount,
       creator_stake_amount: request.creatorStakeAmount,
       joiner_stake_amount: request.joinerStakeAmount,
       contract_deadline: request.contractDeadline,
       is_public: request.isPublic ?? false,
       tags: request.tags ?? [],
       join_code_expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24h expiry
-      escrow_pda: getRoomEscrowPDA(userId).toBase58(), // will be updated after on-chain init
+      escrow_pda: getRoomEscrowPDA(walletAddress).toBase58(), // will be updated after on-chain init
     })
     .select()
     .single();
@@ -50,7 +92,7 @@ export async function createRoom(
     .from('room_participants')
     .insert({
       room_id: room.id,
-      user_id: userId,
+      user_id: resolvedUserId,
       role: 'creator',
       status: 'active',
       wallet_address: walletAddress,
@@ -72,7 +114,7 @@ export async function createRoom(
       summary: request.terms.summary,
       conditions: request.terms.conditions,
       additional_notes: request.terms.additionalNotes,
-      proposed_by: userId,
+      proposed_by: resolvedUserId,
       creator_approved: true,
       joiner_approved: false,
     });
@@ -101,6 +143,9 @@ export async function joinRoom(
   walletAddress: string,
   joinCode: string
 ): Promise<Room> {
+  // Resolve wallet → UUID
+  const resolvedUserId = await upsertUserByWallet(walletAddress);
+
   // Find room by join code
   const { data: room, error: findError } = await supabase
     .from('rooms')
@@ -117,7 +162,7 @@ export async function joinRoom(
   }
 
   // Can't join own room
-  if (room.creator_id === userId) {
+  if (room.creator_id === resolvedUserId) {
     throw new Error('Cannot join your own room');
   }
 
@@ -125,7 +170,7 @@ export async function joinRoom(
   const { data: updatedRoom, error: updateError } = await supabase
     .from('rooms')
     .update({
-      joiner_id: userId,
+      joiner_id: resolvedUserId,
       status: 'awaiting_approval',
     })
     .eq('id', room.id)
@@ -137,7 +182,7 @@ export async function joinRoom(
   // Add joiner as participant
   await supabase.from('room_participants').insert({
     room_id: room.id,
-    user_id: userId,
+    user_id: resolvedUserId,
     role: 'joiner',
     status: 'active',
     wallet_address: walletAddress,

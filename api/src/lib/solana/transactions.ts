@@ -1,8 +1,8 @@
 /**
- * Blink Server-Side Transaction Builder
+ * StakeGuard Server-Side Transaction Builder
  *
  * Builds unsigned Solana transactions that callers sign with their own wallet.
- * This is the core engine behind the Blink API — no wallet adapter
+ * This is the core engine behind the StakeGuard API — no wallet adapter
  * needed, just a public key and the API returns a base64-encoded transaction.
  *
  * Pattern used by Jupiter, Tensor, Dialect, and other Solana API products:
@@ -11,7 +11,7 @@
  *   3. Returns base64-encoded tx
  *   4. Client deserializes → signs → sends
  */
-import { AnchorProvider, Program, BN } from '@coral-xyz/anchor';
+import { AnchorProvider, Program, BN, BorshCoder } from '@coral-xyz/anchor';
 import {
   Connection,
   PublicKey,
@@ -21,13 +21,15 @@ import {
   LAMPORTS_PER_SOL,
   VersionedTransaction,
   TransactionMessage,
+  TransactionInstruction,
+  AccountMeta,
 } from '@solana/web3.js';
 import { IDL } from './idl';
 import { hashString, getRoomEscrowPDA, getStakeRecordPDA } from './pda';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
-export const PROGRAM_ID = new PublicKey('Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ');
+export const PROGRAM_ID = new PublicKey('4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf');
 export const PENALTY_WALLET = new PublicKey('2c8QGXM2tRMh7yb1Zva48ZmQTPMmLZCu159x2hscxxwv');
 
 const RPC_URL =
@@ -47,12 +49,26 @@ export function getConnection(): Connection {
   return new Connection(RPC_URL, 'confirmed');
 }
 
-/** Read-only Anchor Program (for building instructions, not signing) */
+/** Read-only Anchor Program (for fetching on-chain state only) */
 function getReadOnlyProgram(connection: Connection): any {
   const provider = new AnchorProvider(connection, DUMMY_WALLET as any, {
     commitment: 'confirmed',
   });
   return new Program(IDL as any, provider) as any;
+}
+
+/**
+ * Build a raw TransactionInstruction using BorshCoder.
+ * Avoids Anchor's account resolver which tries to fetch PDAs that don't exist yet.
+ */
+function buildRawInstruction(
+  ixName: string,
+  args: Record<string, any>,
+  keys: AccountMeta[]
+): TransactionInstruction {
+  const coder = new BorshCoder(IDL as any);
+  const data = coder.instruction.encode(ixName, args);
+  return new TransactionInstruction({ keys, programId: PROGRAM_ID, data });
 }
 
 /** Wrap instructions into an unsigned legacy Transaction, serialized as base64 */
@@ -106,26 +122,26 @@ export async function buildInitializeRoomTx(
   input: BuildInitializeRoomInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const program = getReadOnlyProgram(connection);
   const feePayer = new PublicKey(input.walletAddress);
 
   const roomHash = Array.from(hashString(input.roomId));
   const escrowPDA = getRoomEscrowPDA(input.roomId);
 
-  const ix = await program.methods
-    .initializeRoom(
-      roomHash as any,
-      input.roomId,
-      feePayer,
-      new BN(Math.round(input.creatorStakeAmount * LAMPORTS_PER_SOL)),
-      new BN(Math.round(input.joinerStakeAmount * LAMPORTS_PER_SOL))
-    )
-    .accounts({
-      escrowAccount: escrowPDA,
-      initializer: feePayer,
-      systemProgram: SystemProgram.programId,
-    } as any)
-    .instruction();
+  const ix = buildRawInstruction(
+    'initializeRoom',
+    {
+      roomHash,
+      roomId: input.roomId,
+      creatorPubkey: feePayer,
+      creatorStakeAmount: new BN(Math.round(input.creatorStakeAmount * LAMPORTS_PER_SOL)),
+      joinerStakeAmount: new BN(Math.round(input.joinerStakeAmount * LAMPORTS_PER_SOL)),
+    },
+    [
+      { pubkey: escrowPDA, isWritable: true, isSigner: false },
+      { pubkey: feePayer, isWritable: true, isSigner: true },
+      { pubkey: SystemProgram.programId, isWritable: false, isSigner: false },
+    ]
+  );
 
   const transaction = await buildUnsignedTx(connection, feePayer, ix);
 
@@ -159,7 +175,6 @@ export async function buildStakeTx(
   input: BuildStakeTxInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const program = getReadOnlyProgram(connection);
   const feePayer = new PublicKey(input.walletAddress);
 
   const roomHash = Array.from(hashString(input.roomId));
@@ -167,22 +182,23 @@ export async function buildStakeTx(
   const escrowPDA = getRoomEscrowPDA(input.roomId);
   const stakeRecordPDA = getStakeRecordPDA(input.roomId, input.participantId);
 
-  const ix = await program.methods
-    .stake(
-      roomHash as any,
-      participantHash as any,
-      input.roomId,
-      input.participantId,
-      new BN(Math.round(input.amount * LAMPORTS_PER_SOL)),
-      input.isCreator
-    )
-    .accounts({
-      escrowAccount: escrowPDA,
-      stakeRecord: stakeRecordPDA,
-      staker: feePayer,
-      systemProgram: SystemProgram.programId,
-    } as any)
-    .instruction();
+  const ix = buildRawInstruction(
+    'stake',
+    {
+      roomHash,
+      participantHash,
+      roomId: input.roomId,
+      participantId: input.participantId,
+      amount: new BN(Math.round(input.amount * LAMPORTS_PER_SOL)),
+      isCreator: input.isCreator,
+    },
+    [
+      { pubkey: escrowPDA, isWritable: true, isSigner: false },
+      { pubkey: stakeRecordPDA, isWritable: true, isSigner: false },
+      { pubkey: feePayer, isWritable: true, isSigner: true },
+      { pubkey: SystemProgram.programId, isWritable: false, isSigner: false },
+    ]
+  );
 
   const transaction = await buildUnsignedTx(connection, feePayer, ix);
 
@@ -212,19 +228,19 @@ export async function buildApproveResolveTx(
   input: BuildApproveResolveTxInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const program = getReadOnlyProgram(connection);
   const feePayer = new PublicKey(input.walletAddress);
 
   const roomHash = Array.from(hashString(input.roomId));
   const escrowPDA = getRoomEscrowPDA(input.roomId);
 
-  const ix = await program.methods
-    .approveResolve(roomHash as any, input.roomId)
-    .accounts({
-      escrowAccount: escrowPDA,
-      signer: feePayer,
-    } as any)
-    .instruction();
+  const ix = buildRawInstruction(
+    'approveResolve',
+    { roomHash, roomId: input.roomId },
+    [
+      { pubkey: escrowPDA, isWritable: true, isSigner: false },
+      { pubkey: feePayer, isWritable: false, isSigner: true },
+    ]
+  );
 
   const transaction = await buildUnsignedTx(connection, feePayer, ix);
 
@@ -257,7 +273,6 @@ export async function buildResolveTx(
   input: BuildResolveTxInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const program = getReadOnlyProgram(connection);
   const feePayer = new PublicKey(input.walletAddress);
 
   const roomHash = Array.from(hashString(input.roomId));
@@ -267,22 +282,18 @@ export async function buildResolveTx(
   const creatorStakeRecordPDA = getStakeRecordPDA(input.roomId, input.creatorParticipantId);
   const joinerStakeRecordPDA = getStakeRecordPDA(input.roomId, input.joinerParticipantId);
 
-  const ix = await program.methods
-    .resolve(
-      roomHash as any,
-      input.roomId,
-      creatorParticipantHash as any,
-      joinerParticipantHash as any
-    )
-    .accounts({
-      escrowAccount: escrowPDA,
-      creatorStakeRecord: creatorStakeRecordPDA,
-      joinerStakeRecord: joinerStakeRecordPDA,
-      signer: feePayer,
-      creatorWallet: new PublicKey(input.creatorWallet),
-      joinerWallet: new PublicKey(input.joinerWallet),
-    } as any)
-    .instruction();
+  const ix = buildRawInstruction(
+    'resolve',
+    { roomHash, roomId: input.roomId, creatorParticipantHash, joinerParticipantHash },
+    [
+      { pubkey: escrowPDA, isWritable: true, isSigner: false },
+      { pubkey: creatorStakeRecordPDA, isWritable: true, isSigner: false },
+      { pubkey: joinerStakeRecordPDA, isWritable: true, isSigner: false },
+      { pubkey: feePayer, isWritable: false, isSigner: true },
+      { pubkey: new PublicKey(input.creatorWallet), isWritable: true, isSigner: false },
+      { pubkey: new PublicKey(input.joinerWallet), isWritable: true, isSigner: false },
+    ]
+  );
 
   const transaction = await buildUnsignedTx(connection, feePayer, ix);
 
@@ -316,7 +327,6 @@ export async function buildSlashTx(
   input: BuildSlashTxInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const program = getReadOnlyProgram(connection);
   const feePayer = new PublicKey(input.walletAddress);
 
   const roomHash = Array.from(hashString(input.roomId));
@@ -326,21 +336,17 @@ export async function buildSlashTx(
   const creatorStakeRecordPDA = getStakeRecordPDA(input.roomId, input.creatorParticipantId);
   const joinerStakeRecordPDA = getStakeRecordPDA(input.roomId, input.joinerParticipantId);
 
-  const ix = await program.methods
-    .slash(
-      roomHash as any,
-      input.roomId,
-      creatorParticipantHash as any,
-      joinerParticipantHash as any
-    )
-    .accounts({
-      escrowAccount: escrowPDA,
-      creatorStakeRecord: creatorStakeRecordPDA,
-      joinerStakeRecord: joinerStakeRecordPDA,
-      slasher: feePayer,
-      penaltyWallet: PENALTY_WALLET,
-    } as any)
-    .instruction();
+  const ix = buildRawInstruction(
+    'slash',
+    { roomHash, roomId: input.roomId, creatorParticipantHash, joinerParticipantHash },
+    [
+      { pubkey: escrowPDA, isWritable: true, isSigner: false },
+      { pubkey: creatorStakeRecordPDA, isWritable: true, isSigner: false },
+      { pubkey: joinerStakeRecordPDA, isWritable: true, isSigner: false },
+      { pubkey: feePayer, isWritable: false, isSigner: true },
+      { pubkey: PENALTY_WALLET, isWritable: true, isSigner: false },
+    ]
+  );
 
   const transaction = await buildUnsignedTx(connection, feePayer, ix);
 
@@ -372,24 +378,27 @@ export async function buildCancelRoomTx(
   input: BuildCancelRoomTxInput
 ): Promise<TransactionResult> {
   const connection = getConnection();
-  const program = getReadOnlyProgram(connection);
   const feePayer = new PublicKey(input.walletAddress);
 
   const roomHash = Array.from(hashString(input.roomId));
   const escrowPDA = getRoomEscrowPDA(input.roomId);
 
-  const accounts: any = {
-    escrowAccount: escrowPDA,
-    creator: feePayer,
-  };
-  if (input.joinerWallet) {
-    accounts.joinerWallet = new PublicKey(input.joinerWallet);
-  }
+  // Anchor Option<AccountInfo> always requires the account slot;
+  // pass the program ID as sentinel for None
+  const joinerKey = input.joinerWallet
+    ? new PublicKey(input.joinerWallet)
+    : PROGRAM_ID;
+  const keys: AccountMeta[] = [
+    { pubkey: escrowPDA, isWritable: true, isSigner: false },
+    { pubkey: feePayer, isWritable: true, isSigner: true },
+    { pubkey: joinerKey, isWritable: true, isSigner: false },
+  ];
 
-  const ix = await program.methods
-    .cancelRoom(roomHash as any, input.roomId)
-    .accounts(accounts)
-    .instruction();
+  const ix = buildRawInstruction(
+    'cancelRoom',
+    { roomHash, roomId: input.roomId },
+    keys
+  );
 
   const transaction = await buildUnsignedTx(connection, feePayer, ix);
 

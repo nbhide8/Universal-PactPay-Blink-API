@@ -94,6 +94,7 @@ export interface Room {
   creator_id: string;
   joiner_id?: string;
   status: RoomStatus;
+  reward_amount: number;
   creator_stake_amount: number;
   joiner_stake_amount: number;
   escrow_pda?: string;
@@ -280,6 +281,7 @@ export interface TermAmendment {
 export interface CreateRoomRequest {
   title: string;
   description?: string;
+  rewardAmount: number;
   creatorStakeAmount: number;
   joinerStakeAmount: number;
   terms: {

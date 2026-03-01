@@ -97,7 +97,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { walletAddress, title, description, creatorStakeAmount, joinerStakeAmount, terms, isPublic, tags, contractDeadline } = body;
+    const { walletAddress, title, description, rewardAmount, creatorStakeAmount, joinerStakeAmount, terms, isPublic, tags, contractDeadline } = body;
 
     // Mode selection (default: direct for backward compatibility)
     // Also supports legacy "provider" field: solana→direct, stripe/ledger→custodial
@@ -122,15 +122,21 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (!creatorStakeAmount || !joinerStakeAmount) {
+    if (rewardAmount == null || creatorStakeAmount == null || joinerStakeAmount == null) {
       return NextResponse.json(
-        { success: false, error: 'creatorStakeAmount and joinerStakeAmount are required' },
+        { success: false, error: 'rewardAmount, creatorStakeAmount, and joinerStakeAmount are all required' },
         { status: 400 }
       );
     }
-    if (creatorStakeAmount < joinerStakeAmount) {
+    if (typeof rewardAmount !== 'number' || rewardAmount <= 0) {
       return NextResponse.json(
-        { success: false, error: 'Creator stake must be >= joiner stake (trust asymmetry)' },
+        { success: false, error: 'rewardAmount must be greater than zero — this is the payment to the worker on successful completion' },
+        { status: 400 }
+      );
+    }
+    if (typeof creatorStakeAmount !== 'number' || typeof joinerStakeAmount !== 'number' || creatorStakeAmount <= 0 || joinerStakeAmount <= 0) {
+      return NextResponse.json(
+        { success: false, error: 'Both creatorStakeAmount and joinerStakeAmount must be greater than zero. The room creator must also stake.' },
         { status: 400 }
       );
     }
@@ -142,6 +148,7 @@ export async function POST(request: NextRequest) {
       summary: terms.summary || '',
       conditions: terms.conditions || [],
       creatorId: walletAddress,
+      rewardAmount,
       creatorStakeAmount,
       joinerStakeAmount,
       deadline: contractDeadline,
@@ -152,6 +159,7 @@ export async function POST(request: NextRequest) {
     const room = await createRoom(walletAddress, walletAddress, {
       title,
       description,
+      rewardAmount,
       creatorStakeAmount,
       joinerStakeAmount,
       terms: { ...terms, termsHash },
@@ -167,6 +175,7 @@ export async function POST(request: NextRequest) {
       summary: terms.summary || '',
       conditions: terms.conditions || [],
       creatorId: walletAddress,
+      rewardAmount,
       creatorStakeAmount,
       joinerStakeAmount,
       deadline: contractDeadline,

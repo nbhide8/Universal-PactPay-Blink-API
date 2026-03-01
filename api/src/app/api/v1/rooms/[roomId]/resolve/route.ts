@@ -40,7 +40,7 @@ export async function POST(
     }
     if (!sigResult && isSignatureRequired()) {
       return NextResponse.json(
-        { success: false, error: 'Signature required. Sign message: blink:resolve:<roomId>:<timestamp>' },
+        { success: false, error: 'Signature required. Sign message: stakeguard:resolve:<roomId>:<timestamp>' },
         { status: 401 }
       );
     }
@@ -64,12 +64,13 @@ export async function POST(
     }
 
     // Delegate to escrow engine
+    // Use wallet_address (not Supabase UUID) as participantId — must match what was used during staking
     const engine = getEngine((room as any).mode || (room as any).provider);
     const lockbox = await engine.resolveLockbox({
       roomId: params.roomId,
       callerAddress: walletAddress,
-      creatorParticipantId: creator.id,
-      joinerParticipantId: joiner.id,
+      creatorParticipantId: creator.wallet_address,
+      joinerParticipantId: joiner.wallet_address,
       creatorAddress: creator.wallet_address,
       joinerAddress: joiner.wallet_address,
     });

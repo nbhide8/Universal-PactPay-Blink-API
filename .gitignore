@@ -5,3 +5,13 @@ api/node_modules
 .env
 .env.local
 *.env.local
+
+# Anchor / Rust build artifacts
+anchor-project/target/
+target/
+
+# OS
+.DS_Store
+
+# Test artifacts
+*.log

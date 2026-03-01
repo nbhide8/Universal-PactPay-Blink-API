@@ -1,7 +1,7 @@
 import { createHash } from 'crypto';
 import { PublicKey } from '@solana/web3.js';
 
-const PROGRAM_ID = new PublicKey('Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ');
+const PROGRAM_ID = new PublicKey('4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf');
 
 /**
  * Hash a string using SHA-256 (for PDA derivation)

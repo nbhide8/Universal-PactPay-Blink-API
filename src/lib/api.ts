@@ -70,6 +70,7 @@ export interface Room {
   status: RoomStatus;
   creator_id: string;
   joiner_id: string | null;
+  reward_amount: number;
   creator_stake_amount: number;
   joiner_stake_amount: number;
   join_code: string;
@@ -139,6 +140,7 @@ export async function createRoom(data: {
   walletAddress: string;
   title: string;
   description?: string;
+  rewardAmount: number;
   creatorStakeAmount: number;
   joinerStakeAmount: number;
   mode?: 'direct' | 'custodial';

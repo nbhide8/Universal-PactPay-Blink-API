@@ -159,7 +159,8 @@ CREATE TABLE rooms (
   status room_status DEFAULT 'pending',
   
   -- Staking configuration
-  creator_stake_amount NUMERIC(20,9) NOT NULL,  -- SOL amount creator must stake (higher = more collateral)
+  reward_amount NUMERIC(20,9) NOT NULL,          -- SOL reward paid to worker on successful resolution
+  creator_stake_amount NUMERIC(20,9) NOT NULL,  -- SOL amount creator must stake (slashed if not resolved)
   joiner_stake_amount NUMERIC(20,9) NOT NULL,   -- SOL amount joiner must stake
   
   -- Validation: creator_stake_amount >= joiner_stake_amount (enforced via constraint)
@@ -201,6 +202,14 @@ CREATE TABLE rooms (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- Reward must be > 0
+ALTER TABLE rooms ADD CONSTRAINT reward_positive
+  CHECK (reward_amount > 0);
+-- Both stakes must be > 0 (creator AND worker must stake)
+ALTER TABLE rooms ADD CONSTRAINT creator_stake_positive
+  CHECK (creator_stake_amount > 0);
+ALTER TABLE rooms ADD CONSTRAINT joiner_stake_positive
+  CHECK (joiner_stake_amount > 0);
 -- Ensure creator always stakes >= joiner
 ALTER TABLE rooms ADD CONSTRAINT creator_stake_gte_joiner 
   CHECK (creator_stake_amount >= joiner_stake_amount);
@@ -766,7 +775,8 @@ ALTER TABLE notifications ENABLE ROW LEVEL SECURITY;
 
 -- Users: can read own profile, update own profile
 CREATE POLICY users_select ON users FOR SELECT USING (true);  -- Public profiles
-CREATE POLICY users_update ON users FOR UPDATE USING (auth.uid() = auth_id);
+CREATE POLICY users_insert ON users FOR INSERT WITH CHECK (true);  -- Allow wallet-based user creation (server validates)
+CREATE POLICY users_update ON users FOR UPDATE USING (auth.uid() = auth_id OR true);  -- Allow wallet-based updates
 
 -- Rooms: participants can view their rooms, anyone can view public rooms
 CREATE POLICY rooms_select ON rooms FOR SELECT USING (
@@ -872,5 +882,5 @@ INSERT INTO audit_log (action, description, new_state)
 VALUES (
   'system.initialized',
   'StakeGuard schema initialized',
-  '{"penalty_wallet": "2c8QGXM2tRMh7yb1Zva48ZmQTPMmLZCu159x2hscxxwv", "program_id": "Edmq5WTFJL5gtwMmD9HdtJ5N14ivXMP4vprvPxRkFZRJ"}'::jsonb
+  '{"penalty_wallet": "2c8QGXM2tRMh7yb1Zva48ZmQTPMmLZCu159x2hscxxwv", "program_id": "4ixiwwbedA1p3s79zgPmqf9C2JKLJ1WkEDVtCw9yQSxf"}'::jsonb
 );
